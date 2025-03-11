@@ -2,10 +2,11 @@ package blockchain
 
 import (
 	"blockchain-simulator/state"
+
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func NewBlockchain(accountsToFund []string, amountsToFund []uint64) *Blockchain {
+func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uint64) *Blockchain {
 	// Create the genesis block
 	genesisBlock := CreateGenesisBlock(accountsToFund, amountsToFund)
 
@@ -19,7 +20,12 @@ func NewBlockchain(accountsToFund []string, amountsToFund []uint64) *Blockchain 
 	}
 	for addr, acc := range genesisAccounts {
 		stateTrie.PutAccount(addr, acc)
+		storage.PutAccount(addr, acc)
 	}
+
+	// Store genesis block
+	storage.PutBlock(genesisBlock)
+	storage.PutState(genesisBlock.StateRoot, stateTrie)
 
 	// Define validators (for PoS or round-robin)
 	validators := []common.Address{
@@ -32,5 +38,6 @@ func NewBlockchain(accountsToFund []string, amountsToFund []uint64) *Blockchain 
 		StateTrie:  stateTrie,
 		PendingTxs: []Transaction{},
 		Validators: validators,
+		storage:    storage,
 	}
 }
