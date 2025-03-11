@@ -2,6 +2,8 @@ package blockchain
 
 import (
 	state "blockchain-simulator/state"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Block represents a block in the blockchain.
@@ -20,13 +22,13 @@ type Blockchain struct {
 	Chain      []Block       // Array of blocks
 	StateTrie  *state.Trie   // Merkle Patricia Trie for account states
 	PendingTxs []Transaction // Pending transactions (transaction pool)
-	Validators []string      // List of validators (for PoS or round-robin)
+	Validators []common.Address      // List of validators (for PoS or round-robin)
 }
 
 // Transaction represents a transaction in the blockchain.
 type Transaction struct {
-	From   string // Sender's address
-	To     string // Receiver's address
+	From   common.Address // Sender's address
+	To     common.Address // Receiver's address
 	Amount int    // Amount to transfer
 	Nonce  int    // Sender's transaction count
 }
