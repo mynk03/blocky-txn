@@ -29,6 +29,6 @@ type Blockchain struct {
 type Transaction struct {
 	From   common.Address // Sender's address
 	To     common.Address // Receiver's address
-	Amount int    // Amount to transfer
-	Nonce  int    // Sender's transaction count
+	Amount uint64    // Amount to transfer
+	Nonce  uint64    // Sender's transaction count
 }
