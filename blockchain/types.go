@@ -19,16 +19,17 @@ type Block struct {
 
 // Blockchain represents the entire chain.
 type Blockchain struct {
-	Chain      []Block       // Array of blocks
-	StateTrie  *state.Trie   // Merkle Patricia Trie for account states
-	PendingTxs []Transaction // Pending transactions (transaction pool)
-	Validators []common.Address      // List of validators (for PoS or round-robin)
+	Chain      []Block          // Array of blocks
+	StateTrie  *state.Trie      // Merkle Patricia Trie for account states
+	PendingTxs []Transaction    // Pending transactions (transaction pool)
+	Validators []common.Address // List of validators (for PoS or round-robin)
+	storage    Storage          // Add storage field
 }
 
 // Transaction represents a transaction in the blockchain.
 type Transaction struct {
 	From   common.Address // Sender's address
 	To     common.Address // Receiver's address
-	Amount uint64    // Amount to transfer
-	Nonce  uint64    // Sender's transaction count
+	Amount uint64         // Amount to transfer
+	Nonce  uint64         // Sender's transaction count
 }
