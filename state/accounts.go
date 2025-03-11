@@ -8,8 +8,8 @@ import (
 // Account represents a user account in the state trie.
 type Account struct {
 	Address common.Address // Use common.Address for the address
-	Balance int
-	Nonce   int
+	Balance uint64
+	Nonce   uint64
 }
 
 // Serialize serializes the account to bytes.
