@@ -57,6 +57,14 @@ func (bc *Blockchain) AddBlock(newBlock Block) bool {
 	// Apply transactions to the state trie
 	ProcessBlock(newBlock, bc.StateTrie)
 
+	// Store block and updated state
+	if err := bc.storage.PutBlock(newBlock); err != nil {
+		return false
+	}
+	if err := bc.storage.PutState(newBlock.StateRoot, bc.StateTrie); err != nil {
+		return false
+	}
+
 	// Update the chain
 	bc.Chain = append(bc.Chain, newBlock)
 	return true
