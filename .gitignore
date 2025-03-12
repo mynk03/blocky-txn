@@ -24,4 +24,7 @@ go.work.sum
 # env file
 .env
 node_modules/
-.DS_Store   
+.DS_Store  
+
+# LevelDB database
+testdb/
