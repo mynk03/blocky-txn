@@ -3,6 +3,7 @@ package blockchain
 import (
 	"blockchain-simulator/state"
 	"encoding/json"
+	"log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/syndtr/goleveldb/leveldb"
@@ -18,6 +19,16 @@ const (
 	accountPrefix = "a:" // account prefix
 	latestKey     = "latest"
 )
+
+// Initialize storage
+func InitializeStorage() *LevelDBStorage {
+	dbPath := "../chaindata"
+	storage, err := NewLevelDBStorage(dbPath)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return storage
+}
 
 func NewLevelDBStorage(path string) (*LevelDBStorage, error) {
 	db, err := leveldb.OpenFile(path, nil)
