@@ -19,6 +19,4 @@ type Storage interface {
 	// Account operations
 	PutAccount(address common.Address, account *state.Account) error
 	GetAccount(address common.Address) (*state.Account, error)
-
-	Close() error
 }

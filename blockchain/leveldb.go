@@ -22,7 +22,7 @@ const (
 
 // Initialize storage
 func InitializeStorage() *LevelDBStorage {
-	dbPath := "../chaindata"
+	dbPath := "./chaindata"
 	storage, err := NewLevelDBStorage(dbPath)
 	if err != nil {
 		log.Fatal(err)
@@ -109,8 +109,4 @@ func (s *LevelDBStorage) GetAccount(address common.Address) (*state.Account, err
 	var account state.Account
 	err = json.Unmarshal(data, &account)
 	return &account, err
-}
-
-func (s *LevelDBStorage) Close() error {
-	return s.db.Close()
 }
