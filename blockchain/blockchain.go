@@ -41,3 +41,19 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 		storage:    storage,
 	}
 }
+
+func (bc *Blockchain) GetLatestHash() string {
+	if len(bc.Chain) == 0 {
+		return ""
+	}
+	return bc.Chain[len(bc.Chain)-1].Hash
+}
+
+func (bc *Blockchain) GetBlockByHash(hash string) *Block {
+	for _, block := range bc.Chain {
+		if block.Hash == hash {
+			return &block
+		}
+	}
+	return nil
+}
