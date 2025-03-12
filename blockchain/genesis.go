@@ -42,7 +42,6 @@ func CreateBlockchain(storage *LevelDBStorage, accountsToFund []string, amountsT
 	}
 	for addr, acc := range genesisAccounts {
 		stateTrie.PutAccount(addr, acc)
-		storage.PutAccount(addr, acc)
 	}
 
 	// Store genesis block

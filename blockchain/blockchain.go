@@ -20,7 +20,6 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 	}
 	for addr, acc := range genesisAccounts {
 		stateTrie.PutAccount(addr, acc)
-		storage.PutAccount(addr, acc)
 	}
 
 	// Store genesis block
