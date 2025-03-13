@@ -2,26 +2,35 @@ package state
 
 import (
 	"encoding/json"
+
 	"github.com/ethereum/go-ethereum/common"
+	log "github.com/sirupsen/logrus"
 )
 
 // Account represents a user account in the state trie.
 type Account struct {
-	Address common.Address // Use common.Address for the address
 	Balance uint64
 	Nonce   uint64
 }
 
 // Serialize serializes the account to bytes.
 func (a *Account) Serialize() []byte {
-	data, _ := json.Marshal(a)
+	data, err := json.Marshal(a)
+	if err != nil {
+		log.WithError(err).Error("Error serializing account")
+		return nil
+	}
 	return data
 }
 
 // Deserialize deserializes bytes to an account.
 func Deserialize(data []byte) *Account {
 	var account Account
-	json.Unmarshal(data, &account)
+	err := json.Unmarshal(data, &account)
+	if err != nil {
+		log.WithError(err).Error("Error deserializing account")
+		return nil
+	}
 	return &account
 }
 
@@ -35,6 +44,10 @@ func (t *Trie) PutAccount(address common.Address, account *Account) {
 func (t *Trie) GetAccount(address common.Address) *Account {
 	key := addressToNibbles(address)
 	data := t.get(t.Root, key)
+	if data == nil {
+		log.WithField("address", address.Hex()).Error("No data found for address")
+		return nil
+	}
 	return Deserialize(data)
 }
 

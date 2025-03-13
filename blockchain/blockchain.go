@@ -14,13 +14,13 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 	stateTrie := state.NewTrie()
 
 	// Seed initial accounts into the state trie
-	genesisAccounts := map[common.Address]*state.Account{
-		common.HexToAddress("0x0000000000000000000000000000000000000001"): {Balance: 1000, Nonce: 0},
-		common.HexToAddress("0x0000000000000000000000000000000000000002"): {Balance: 500, Nonce: 0},
-	}
-	for addr, acc := range genesisAccounts {
-		stateTrie.PutAccount(addr, acc)
-		storage.PutAccount(addr, acc)
+	genesisAccounts := map[common.Address]*state.Account{}
+	for i, addr := range accountsToFund {
+		address := common.HexToAddress(addr)
+		account := &state.Account{Balance: amountsToFund[i], Nonce: 0}
+		genesisAccounts[address] = account
+		stateTrie.PutAccount(address, account)
+		storage.PutAccount(address, account)
 	}
 
 	// Store genesis block
@@ -28,9 +28,9 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 	storage.PutState(genesisBlock.StateRoot, stateTrie)
 
 	// Define validators (for PoS or round-robin)
-	validators := []common.Address{
-		common.HexToAddress("0x0000000000000000000000000000000000000001"),
-		common.HexToAddress("0x0000000000000000000000000000000000000002"),
+	validators := make([]common.Address, len(accountsToFund))
+	for i, addr := range accountsToFund {
+		validators[i] = common.HexToAddress(addr)
 	}
 
 	return &Blockchain{
