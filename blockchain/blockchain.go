@@ -14,6 +14,7 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 	stateTrie := state.NewTrie()
 
 	// Seed initial accounts into the state trie
+
 	genesisAccounts := map[common.Address]*state.Account{}
 	for i, addr := range accountsToFund {
 		address := common.HexToAddress(addr)

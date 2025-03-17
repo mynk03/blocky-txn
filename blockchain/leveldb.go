@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -23,14 +22,14 @@ const (
 // Initialize storage
 func InitializeStorage() *LevelDBStorage {
 	dbPath := "./chaindata"
-	storage, err := NewLevelDBStorage(dbPath)
+	storage, err := newLevelDBStorage(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	return storage
 }
 
-func NewLevelDBStorage(path string) (*LevelDBStorage, error) {
+func newLevelDBStorage(path string) (*LevelDBStorage, error) {
 	db, err := leveldb.OpenFile(path, nil)
 	if err != nil {
 		return nil, err
@@ -90,23 +89,4 @@ func (s *LevelDBStorage) GetState(stateRoot string) (*state.Trie, error) {
 	var trie state.Trie
 	err = json.Unmarshal(data, &trie)
 	return &trie, err
-}
-
-func (s *LevelDBStorage) PutAccount(address common.Address, account *state.Account) error {
-	data, err := json.Marshal(account)
-	if err != nil {
-		return err
-	}
-	return s.db.Put([]byte(accountPrefix+address.Hex()), data, nil)
-}
-
-func (s *LevelDBStorage) GetAccount(address common.Address) (*state.Account, error) {
-	data, err := s.db.Get([]byte(accountPrefix+address.Hex()), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	var account state.Account
-	err = json.Unmarshal(data, &account)
-	return &account, err
 }

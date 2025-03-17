@@ -2,8 +2,6 @@ package blockchain
 
 import (
 	"blockchain-simulator/state"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type Storage interface {
@@ -15,8 +13,4 @@ type Storage interface {
 	// State operations
 	PutState(stateRoot string, trie *state.Trie) error
 	GetState(stateRoot string) (*state.Trie, error)
-
-	// Account operations
-	PutAccount(address common.Address, account *state.Account) error
-	GetAccount(address common.Address) (*state.Account, error)
 }
