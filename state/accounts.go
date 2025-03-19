@@ -2,6 +2,7 @@ package state
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	log "github.com/sirupsen/logrus"
@@ -36,8 +37,11 @@ func Deserialize(data []byte) *Account {
 
 // PutAccount inserts/updates an account in the trie.
 func (t *Trie) PutAccount(address common.Address, account *Account) {
+	fmt.Println("PutAccount Here 1", address, account)
 	key := addressToNibbles(address) // Convert address to nibbles
+	fmt.Println("PutAccount Here 2", key)
 	t.insert(t.Root, key, account.Serialize())
+	fmt.Println("PutAccount Here 3", t.Root)
 }
 
 // GetAccount retrieves an account from the trie.

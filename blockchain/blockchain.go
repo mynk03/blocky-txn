@@ -7,22 +7,11 @@ import (
 )
 
 func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uint64) *Blockchain {
-	// Create the genesis block
-	genesisBlock := CreateGenesisBlock(accountsToFund, amountsToFund)
-
 	// Initialize the state trie
 	stateTrie := state.NewTrie()
 
-	// Seed initial accounts into the state trie
-
-	genesisAccounts := map[common.Address]*state.Account{}
-	for i, addr := range accountsToFund {
-		address := common.HexToAddress(addr)
-		account := &state.Account{Balance: amountsToFund[i], Nonce: 0}
-		genesisAccounts[address] = account
-		stateTrie.PutAccount(address, account)
-		storage.PutAccount(address, account)
-	}
+	// Create the genesis block
+	genesisBlock := CreateGenesisBlock(accountsToFund, amountsToFund, stateTrie)
 
 	// Store genesis block
 	storage.PutBlock(genesisBlock)
@@ -39,7 +28,8 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 		StateTrie:  stateTrie,
 		PendingTxs: []Transaction{},
 		Validators: validators,
-		storage:    storage,
+		Storage:    storage,
+		TotalBlocks:     1,
 	}
 }
 

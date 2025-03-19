@@ -23,7 +23,8 @@ type Blockchain struct {
 	StateTrie  *state.Trie      // Merkle Patricia Trie for account states
 	PendingTxs []Transaction    // Pending transactions (transaction pool)
 	Validators []common.Address // List of validators (for PoS or round-robin)
-	storage    Storage          // Add storage field
+	Storage    Storage          // Add storage field
+	TotalBlocks uint64           // Total number of blocks in the chain
 }
 
 // Transaction represents a transaction in the blockchain.
