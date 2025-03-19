@@ -1,16 +1,22 @@
 package blockchain
 
 import (
-	"fmt"
+	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/suite"
 )
 
-const DbPath = "./testdb"
-const user1 = "0x100000000000000000000000000000000000000a"
-const user2 = "0x100000000000000000000000000000000000000b"
+const (
+	DbPath    = "./testdb"
+	user1     = "0x100000100000000000000000000000000000000a"
+	user2     = "0x100000100000000000000000000000000000000d"
+	ext_user1 = "0x1100001000000000000000000000000000000001"
+	ext_user2 = "0x1110001000000000000000000000000000000009"
+	user3     = "0x1000001000000000000000000000000000000010"
+	real_user = "0xfbB9295b7Cc91219c67cd2F6f2dec9891949769b"
+)
 
 // Define the test suite
 type BlockchainTestSuite struct {
@@ -35,6 +41,12 @@ func (suite *BlockchainTestSuite) TearDownTest() {
 	if ldb, ok := suite.storage.(*LevelDBStorage); ok {
 		ldb.db.Close()
 	}
+	os.RemoveAll(DbPath)
+}
+
+// Run the test suite
+func TestBlockchainTestSuite(t *testing.T) {
+	suite.Run(t, new(BlockchainTestSuite))
 }
 
 // Test methods
@@ -58,7 +70,11 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	sender := common.HexToAddress(user1)
 	receiver := common.HexToAddress(user2)
 
-	latestHash := suite.bc.GetLatestHash()
+	TotalBlocks := suite.bc.TotalBlocks
+	if TotalBlocks == 0 {
+		suite.Fail("No genesis blocks in the chain")
+	}
+	prevBlock := suite.bc.Chain[TotalBlocks-1]
 
 	tx := Transaction{
 		From:   sender,
@@ -67,14 +83,8 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 		Nonce:  0,
 	}
 
-	prevBlock, err := suite.storage.GetBlock(latestHash)
-	fmt.Println("Test Here 0 error in the getting previous block", err, "prevBlock", prevBlock)
-	suite.NoError(err)
-
-	newBlock := CreateBlock([]Transaction{tx}, prevBlock, suite.bc.StateTrie)
-	fmt.Println("Test Here 1 error in the adding block", newBlock)
+	newBlock := CreateBlock([]Transaction{tx}, prevBlock)
 	success := suite.bc.AddBlock(newBlock)
-	fmt.Println("Test Here 2 error in the adding block", success)
 	suite.True(success)
 
 	// Verify account balances after transaction
@@ -89,8 +99,8 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 func (suite *BlockchainTestSuite) TestBlockPersistence() {
 	// Create and add a new block
 	tx := Transaction{
-		From:   common.HexToAddress("0x100000000000000000000000000000000000000a"),
-		To:     common.HexToAddress("0x100000000000000000000000000000000000000b"),
+		From:   common.HexToAddress(user1),
+		To:     common.HexToAddress(user2),
 		Amount: 5,
 		Nonce:  0,
 	}
@@ -99,7 +109,7 @@ func (suite *BlockchainTestSuite) TestBlockPersistence() {
 	prevBlock, err := suite.storage.GetBlock(latestHash)
 	suite.NoError(err)
 
-	newBlock := CreateBlock([]Transaction{tx}, prevBlock, suite.bc.StateTrie)
+	newBlock := CreateBlock([]Transaction{tx}, prevBlock)
 	success := suite.bc.AddBlock(newBlock)
 	suite.True(success)
 
@@ -113,8 +123,8 @@ func (suite *BlockchainTestSuite) TestBlockPersistence() {
 func (suite *BlockchainTestSuite) TestInvalidTransactions() {
 	// Test transaction with insufficient balance
 	tx := Transaction{
-		From:   common.HexToAddress("0x100000000000000000000000000000000000000a"),
-		To:     common.HexToAddress("0x100000000000000000000000000000000000000b"),
+		From:   common.HexToAddress(user1),
+		To:     common.HexToAddress(user2),
 		Amount: 20, // More than available balance
 		Nonce:  0,
 	}
@@ -123,26 +133,26 @@ func (suite *BlockchainTestSuite) TestInvalidTransactions() {
 	prevBlock, err := suite.storage.GetBlock(latestHash)
 	suite.NoError(err)
 
-	newBlock := CreateBlock([]Transaction{tx}, prevBlock, suite.bc.StateTrie)
+	newBlock := CreateBlock([]Transaction{tx}, prevBlock)
 	success := suite.bc.AddBlock(newBlock)
 	suite.False(success) // Should fail due to insufficient balance
 
 	// Test transaction with invalid nonce
 	tx = Transaction{
-		From:   common.HexToAddress("0x100000000000000000000000000000000000000a"),
-		To:     common.HexToAddress("0x100000000000000000000000000000000000000b"),
+		From:   common.HexToAddress(user1),
+		To:     common.HexToAddress(user2),
 		Amount: 5,
 		Nonce:  1, // Invalid nonce (should be 0)
 	}
 
-	newBlock = CreateBlock([]Transaction{tx}, prevBlock, suite.bc.StateTrie)
+	newBlock = CreateBlock([]Transaction{tx}, prevBlock)
 	success = suite.bc.AddBlock(newBlock)
 	suite.False(success) // Should fail due to invalid nonce
 }
 
 func (suite *BlockchainTestSuite) TestMultipleTransactions() {
-	sender := common.HexToAddress("0x100000000000000000000000000000000000000a")
-	receiver := common.HexToAddress("0x100000000000000000000000000000000000000b")
+	sender := common.HexToAddress(user1)
+	receiver := common.HexToAddress(user2)
 
 	// Create multiple transactions
 	txs := []Transaction{
@@ -154,7 +164,7 @@ func (suite *BlockchainTestSuite) TestMultipleTransactions() {
 	prevBlock, err := suite.storage.GetBlock(latestHash)
 	suite.NoError(err)
 
-	newBlock := CreateBlock(txs, prevBlock, suite.bc.StateTrie)
+	newBlock := CreateBlock(txs, prevBlock)
 	success := suite.bc.AddBlock(newBlock)
 	suite.True(success)
 
@@ -166,9 +176,4 @@ func (suite *BlockchainTestSuite) TestMultipleTransactions() {
 	receiverAcc := suite.bc.StateTrie.GetAccount(receiver)
 	suite.Equal(uint64(10), receiverAcc.Balance) // 5 + 3 + 2
 	suite.Equal(uint64(0), receiverAcc.Nonce)
-}
-
-// Run the test suite
-func TestBlockchainTestSuite(t *testing.T) {
-	suite.Run(t, new(BlockchainTestSuite))
 }
