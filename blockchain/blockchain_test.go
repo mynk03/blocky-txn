@@ -100,15 +100,7 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 
 	senderAcc := suite.bc.StateTrie.GetAccount(senderAddress)
 	receiverAcc := suite.bc.StateTrie.GetAccount(receiverAddress)
-
-	fmt.Println("@5 pre sender", senderAcc)
-	fmt.Println("@6 pre receiver", receiverAcc)
-
-	// suite.bc.StateTrie.PutAccount(senderAddress, &state.Account{Balance: senderAcc.Balance - 3, Nonce: senderAcc.Nonce + 1})
-	// suite.bc.StateTrie.PutAccount(receiverAddress, &state.Account{Balance: receiverAcc.Balance + 3, Nonce: 0})
-
-	fmt.Println("@7 post sender", suite.bc.StateTrie.GetAccount(senderAddress))
-	fmt.Println("@8 post receiver", suite.bc.StateTrie.GetAccount(receiverAddress))
+	
 	// Verify account balances after transaction
 	senderAcc = suite.bc.StateTrie.GetAccount(senderAddress)
 	fmt.Println("@9 sender", senderAcc)

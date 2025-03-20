@@ -1,7 +1,6 @@
 package state
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -136,26 +135,19 @@ func (suite *StateTrieTestSuite) TestTransactionProcessing() {
 	suite.trie.PutAccount(receiverAddress, &Account{Balance: 5, Nonce: 0})
 
 	// logs
-
 	senderAcc := suite.trie.GetAccount(senderAddress)
 	receiverAcc := suite.trie.GetAccount(receiverAddress)
-
 
 	// current balances
 	senderAccBalance := senderAcc.Balance
 	receiverAccBalance := receiverAcc.Balance
-	fmt.Println("@7 current sender", senderAccBalance)
-	fmt.Println("@8 current receiver", receiverAccBalance)
 
 	senderAccNonce := senderAcc.Nonce
 	suite.trie.PutAccount(senderAddress, &Account{Balance: senderAccBalance - 3, Nonce: senderAccNonce + 1})
 	suite.trie.PutAccount(receiverAddress, &Account{Balance: receiverAccBalance + 3, Nonce: 0})
 
-	fmt.Println("@7 post sender", suite.trie.GetAccount(senderAddress))
-	fmt.Println("@8 post receiver", suite.trie.GetAccount(receiverAddress))
 	// Verify account balances after transaction
 	senderAcc = suite.trie.GetAccount(senderAddress)
-	fmt.Println("@9 sender", senderAcc)
 	suite.Equal(uint64(7), senderAcc.Balance) // 10 - 3
 	suite.Equal(uint64(1), senderAcc.Nonce)
 
