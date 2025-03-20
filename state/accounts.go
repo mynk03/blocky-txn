@@ -36,7 +36,11 @@ func Deserialize(data []byte) *Account {
 
 // PutAccount inserts/updates an account in the trie.
 func (t *Trie) PutAccount(address common.Address, account *Account) {
+	log.WithField("address", address.Hex()).Info("Putting account")
+	log.WithField("account", account).Info("Account")
 	key := addressToNibbles(address) // Convert address to nibbles
+
+	log.WithField("key", key).Info("Key")
 	t.insert(t.Root, key, account.Serialize())
 }
 

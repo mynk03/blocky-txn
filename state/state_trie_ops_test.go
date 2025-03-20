@@ -1,6 +1,7 @@
 package state
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,11 +11,11 @@ import (
 const (
 	// user1      = "0x100000100000000000000000000000000000111a"
 	// user2      = "0x100000100000000000000000000000000000111b"
-	user1      = "0x100000100000000000000000000000000000000a"
-	user2      = "0x100000100000000000000000000000000000000d"
-	ext_user1  = "0x1100001000000000000000000000000000000001"
-	ext_user2  = "0x1110001000000000000000000000000000000009"
-	user3      = "0x1000001000000000000000000000000000000010"
+	user1     = "0x100000100000000000000000000000000000000a"
+	user2     = "0x100000100000000000000000000000000000000d"
+	ext_user1 = "0x1100001000000000000000000000000000000001"
+	ext_user2 = "0x1110001000000000000000000000000000000009"
+	user3     = "0x1000001000000000000000000000000000000010"
 	real_user = "0xfbB9295b7Cc91219c67cd2F6f2dec9891949769b"
 )
 
@@ -117,4 +118,47 @@ func (suite *StateTrieTestSuite) TestInsertMultipleAccounts() {
 	suite.NotNil(retrievedAccount6) // Ensure the account is not nil
 	suite.Equal(uint64(60), retrievedAccount6.Balance)
 	suite.Equal(uint64(0), retrievedAccount6.Nonce)
+
+	suite.trie.PutAccount(address6, &Account{Balance: 60, Nonce: 1})
+	retrievedAccount6 = suite.trie.GetAccount(address6)
+	suite.NotNil(retrievedAccount6) // Ensure the account is not nil
+	suite.Equal(uint64(60), retrievedAccount6.Balance)
+	suite.Equal(uint64(1), retrievedAccount6.Nonce)
+}
+
+func (suite *StateTrieTestSuite) TestTransactionProcessing() {
+
+	senderAddress := common.HexToAddress(user1)
+	receiverAddress := common.HexToAddress(ext_user1)
+
+	// initial balances
+	suite.trie.PutAccount(senderAddress, &Account{Balance: 10, Nonce: 0})
+	suite.trie.PutAccount(receiverAddress, &Account{Balance: 5, Nonce: 0})
+
+	// logs
+
+	senderAcc := suite.trie.GetAccount(senderAddress)
+	receiverAcc := suite.trie.GetAccount(receiverAddress)
+
+
+	// current balances
+	senderAccBalance := senderAcc.Balance
+	receiverAccBalance := receiverAcc.Balance
+	fmt.Println("@7 current sender", senderAccBalance)
+	fmt.Println("@8 current receiver", receiverAccBalance)
+
+	senderAccNonce := senderAcc.Nonce
+	suite.trie.PutAccount(senderAddress, &Account{Balance: senderAccBalance - 3, Nonce: senderAccNonce + 1})
+	suite.trie.PutAccount(receiverAddress, &Account{Balance: receiverAccBalance + 3, Nonce: 0})
+
+	fmt.Println("@7 post sender", suite.trie.GetAccount(senderAddress))
+	fmt.Println("@8 post receiver", suite.trie.GetAccount(receiverAddress))
+	// Verify account balances after transaction
+	senderAcc = suite.trie.GetAccount(senderAddress)
+	fmt.Println("@9 sender", senderAcc)
+	suite.Equal(uint64(7), senderAcc.Balance) // 10 - 3
+	suite.Equal(uint64(1), senderAcc.Nonce)
+
+	receiverAcc = suite.trie.GetAccount(receiverAddress)
+	suite.Equal(uint64(8), receiverAcc.Balance) // 5 + 3
 }
