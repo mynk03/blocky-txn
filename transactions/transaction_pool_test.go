@@ -2,6 +2,7 @@ package transactions
 
 import (
 	"math/rand"
+	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -39,8 +40,16 @@ type TransactionPoolTestSuite struct {
 
 // Setup the test suite
 func (suite *TransactionPoolTestSuite) SetupTest() {
-	suite.storage = InitializeStorage("test_pool_data") 
+	suite.storage = InitializeStorage("test_pool_data")
 	suite.tp, _ = NewTransactionPool(suite.storage)
+}
+
+// Teardown the test suite
+func (suite *TransactionPoolTestSuite) TearDownTest() {
+	if suite.storage != nil {
+		suite.storage.db.Close() // Ensure the database is closed
+	}
+	os.RemoveAll("test_pool_data")
 }
 
 // Run the test suite
