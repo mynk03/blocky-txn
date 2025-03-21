@@ -88,15 +88,12 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	success := suite.bc.AddBlock(newBlock)
 	suite.True(success)
 
-	senderAcc := suite.bc.StateTrie.GetAccount(senderAddress)
-	receiverAcc := suite.bc.StateTrie.GetAccount(receiverAddress)
-
 	// Verify account balances after transaction
-	senderAcc = suite.bc.StateTrie.GetAccount(senderAddress)
+	senderAcc := suite.bc.StateTrie.GetAccount(senderAddress)
 	suite.Equal(uint64(7), senderAcc.Balance) // 10 - 3
 	suite.Equal(uint64(1), senderAcc.Nonce)
 
-	receiverAcc = suite.bc.StateTrie.GetAccount(receiverAddress)
+	receiverAcc := suite.bc.StateTrie.GetAccount(receiverAddress)
 	suite.Equal(uint64(3), receiverAcc.Balance) // 0 + 3
 }
 

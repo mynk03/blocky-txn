@@ -26,7 +26,6 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 	return &Blockchain{
 		Chain:      []Block{genesisBlock},
 		StateTrie:  stateTrie,
-		PendingTxs: []Transaction{},
 		Validators: validators,
 		Storage:    storage,
 		TotalBlocks:     1,
