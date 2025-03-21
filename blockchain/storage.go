@@ -11,6 +11,6 @@ type Storage interface {
 	GetLatestBlock() (Block, error)
 
 	// State operations
-	PutState(stateRoot string, trie *state.Trie) error
-	GetState(stateRoot string) (*state.Trie, error)
+	PutState(stateRoot string, trie *state.MptTrie) error
+	GetState(stateRoot string) (*state.MptTrie, error)
 }

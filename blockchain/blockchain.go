@@ -8,7 +8,7 @@ import (
 
 func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uint64) *Blockchain {
 	// Initialize the state trie
-	stateTrie := state.NewTrie()
+	stateTrie := state.NewMptTrie()
 
 	// Create the genesis block
 	genesisBlock := CreateGenesisBlock(accountsToFund, amountsToFund, stateTrie)
@@ -26,7 +26,6 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 	return &Blockchain{
 		Chain:      []Block{genesisBlock},
 		StateTrie:  stateTrie,
-		PendingTxs: []Transaction{},
 		Validators: validators,
 		Storage:    storage,
 		TotalBlocks:     1,

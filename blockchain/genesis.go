@@ -8,7 +8,7 @@ import (
 )
 
 // CreateGenesisBlock initializes the first block with prefunded accounts.
-func CreateGenesisBlock(accountsToFund []string, amountsToFund []uint64, stateTrie *state.Trie) Block {
+func CreateGenesisBlock(accountsToFund []string, amountsToFund []uint64, stateTrie *state.MptTrie) Block {
 	// Seed initial accounts into the state trie
 	genesisAccounts := map[common.Address]*state.Account{}
 	for i, addr := range accountsToFund {
