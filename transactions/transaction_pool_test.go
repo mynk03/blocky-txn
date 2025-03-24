@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/suite"
@@ -15,6 +16,7 @@ const (
 )
 
 var currentNonce uint64 = 1
+var blockNumber uint32 = 1
 
 func randomTransaction() Transaction {
 	amount := uint64(rand.Intn(1000))
@@ -24,9 +26,13 @@ func randomTransaction() Transaction {
 		TransactionHash: "", // populate later
 		From:            common.HexToAddress(user1),
 		To:              common.HexToAddress(user2),
+		BlockNumber:     blockNumber,
+		Timestamp:       uint64(time.Now().Second()),
+		Status:          1,
 		Amount:          amount,
 		Nonce:           nonce,
 	}
+
 	txn.TransactionHash = txn.Hash()
 	return txn
 }

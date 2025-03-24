@@ -8,12 +8,24 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// TransactionStatus represents the status of a transaction using an enum.
+type TransactionStatus int
+
+const (
+	Success TransactionStatus = iota
+	Pending
+	Failed
+)
+
 type Transaction struct {
-	TransactionHash string         // Hash of the transaction (from, to, amount, nonce), important for removing transactions from the pool
-	From            common.Address // Sender's address
-	To              common.Address // Receiver's address
-	Amount          uint64         // Amount to transfer
-	Nonce           uint64         // Sender's transaction count
+	TransactionHash string            // Hash of the transaction (from, to, amount, nonce), important for removing transactions from the pool
+	From            common.Address    // Sender's address
+	To              common.Address    // Receiver's address
+	BlockNumber     uint32            // Block consisting the transaction
+	Timestamp       uint64            // Timestamp of the transaction
+	Status          TransactionStatus // Finality status of the Transaction
+	Amount          uint64            // Amount to transfer
+	Nonce           uint64            // Sender's transaction count
 }
 
 // TransactionHash will always uniques as the sender could not have same nonce
