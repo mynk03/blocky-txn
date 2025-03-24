@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/nspcc-dev/neo-go/pkg/core/mpt"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -45,7 +46,7 @@ func (suite *MptTrieTestSuite) TestPutAndGetAccount() {
 func (suite *MptTrieTestSuite) TestGetNonExistentAccount() {
 	address := common.HexToAddress(user2)
 	account, err := suite.trie.GetAccount(address)
-	suite.EqualError(err, "item not found")
+	suite.EqualError(err, mpt.ErrNotFound.Error())
 	suite.Nil(account)
 }
 
