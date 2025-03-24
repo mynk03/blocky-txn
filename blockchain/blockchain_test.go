@@ -1,7 +1,6 @@
 package blockchain
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -62,11 +61,6 @@ func (suite *BlockchainTestSuite) TestGenesisBlockCreation() {
 	suite.NotEmpty(genesisBlock.StateRoot)
 	suite.Equal(genesisBlock.StateRoot, suite.bc.StateTrie.RootHash())
 
-	//logs
-	fmt.Println("genesis block", genesisBlock)
-	fmt.Println("user1", suite.bc.StateTrie.GetAccount(common.HexToAddress(user1)))
-	fmt.Println("user2", suite.bc.StateTrie.GetAccount(common.HexToAddress(user2)))
-
 	// verify balances
 	suite.Equal(uint64(10), suite.bc.StateTrie.GetAccount(common.HexToAddress(user1)).Balance)
 	suite.Equal(uint64(5), suite.bc.StateTrie.GetAccount(common.HexToAddress(user2)).Balance)
@@ -76,10 +70,6 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 
 	senderAddress := common.HexToAddress(user1)
 	receiverAddress := common.HexToAddress(ext_user1)
-
-	// logs
-	fmt.Println("@3 sender", suite.bc.StateTrie.GetAccount(senderAddress))
-	fmt.Println("@4 receiver", suite.bc.StateTrie.GetAccount(receiverAddress))
 
 	TotalBlocks := suite.bc.TotalBlocks
 	if TotalBlocks == 0 {
@@ -100,17 +90,15 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 
 	senderAcc := suite.bc.StateTrie.GetAccount(senderAddress)
 	receiverAcc := suite.bc.StateTrie.GetAccount(receiverAddress)
-	
+
 	// Verify account balances after transaction
 	senderAcc = suite.bc.StateTrie.GetAccount(senderAddress)
-	fmt.Println("@9 sender", senderAcc)
 	suite.Equal(uint64(7), senderAcc.Balance) // 10 - 3
 	suite.Equal(uint64(1), senderAcc.Nonce)
 
 	receiverAcc = suite.bc.StateTrie.GetAccount(receiverAddress)
 	suite.Equal(uint64(3), receiverAcc.Balance) // 0 + 3
 }
-
 
 func (suite *BlockchainTestSuite) TestBlockPersistence() {
 	// Create and add a new block
