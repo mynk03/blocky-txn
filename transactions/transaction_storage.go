@@ -41,7 +41,7 @@ func (s *LevelDBStorage) PutTransaction(tx Transaction) error {
 	if err != nil {
 		return err
 	}
-	return s.db.Put([]byte(transactionPrefix+tx.Hash()), data, nil)
+	return s.db.Put([]byte(transactionPrefix+tx.GenerateHash()), data, nil)
 }
 
 // GetTransaction gets a transaction from the database [Getter]

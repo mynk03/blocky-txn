@@ -33,7 +33,7 @@ func randomTransaction() Transaction {
 		Nonce:           nonce,
 	}
 
-	txn.TransactionHash = txn.Hash()
+	txn.TransactionHash = txn.GenerateHash()
 	return txn
 }
 
@@ -92,7 +92,7 @@ func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactions() {
 	tx3 := randomTransaction()
 
 	suite.tp.AddTransaction(tx2)
-	suite.tp.RemoveBulkTransactions([]string{tx2.Hash(), tx3.Hash()})
+	suite.tp.RemoveBulkTransactions([]string{tx2.GenerateHash(), tx3.GenerateHash()})
 	suite.NotContains(suite.tp.PendingTransactions, tx2)
 	suite.NotContains(suite.tp.PendingTransactions, tx3)
 }
@@ -113,7 +113,7 @@ func (suite *TransactionPoolTestSuite) TestGetTransactionByHash() {
 	foundTx := suite.tp.GetTransactionByHash(tx1.TransactionHash)
 
 	suite.NotNil(foundTx)
-	suite.Equal(tx1.Hash(), foundTx.TransactionHash)
+	suite.Equal(tx1.GenerateHash(), foundTx.TransactionHash)
 	suite.Equal(tx1.From, foundTx.From)
 	suite.Equal(tx1.To, foundTx.To)
 	suite.Equal(tx1.Amount, foundTx.Amount)

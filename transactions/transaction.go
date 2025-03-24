@@ -29,8 +29,7 @@ type Transaction struct {
 }
 
 // TransactionHash will always uniques as the sender could not have same nonce
-
-func (t *Transaction) Hash() string {
+func (t *Transaction) GenerateHash() string {
 	// Convert values to bytes and concatenate
 	data := fmt.Sprintf("%s %s %d %d", t.From, t.To, t.Amount, t.Nonce)
 
