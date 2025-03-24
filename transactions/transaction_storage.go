@@ -12,9 +12,9 @@ type LevelDBStorage struct {
 }
 
 const (
-	transactionPrefix = "t:" // transaction prefix
-	pendingKey        = "pending"
-	allKey            = "all"
+	transactionPrefix = "t:"      // Prefix used for storing transactions in the database, ensuring easy identification and retrieval.
+	pendingKey        = "pending" // Key used to store and retrieve all pending transactions.
+	allKey            = "all"     // Key used to store and retrieve all transactions, including pending, confirmed, and failed.
 )
 
 // Initialize storage

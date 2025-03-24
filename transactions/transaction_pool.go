@@ -6,10 +6,11 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// TransactionPool manages the lifecycle of transactions, including tracking pending and processed transactions.
 type TransactionPool struct {
-	PendingTransactions []Transaction
-	AllTransactions     []Transaction
-	storage             TransactionStorage
+	PendingTransactions []Transaction      // List of transactions that are yet to be confirmed or finalized.
+	AllTransactions     []Transaction      // List of all transactions that have passed through the pool, including pending and finalized ones.
+	storage             TransactionStorage // Storage layer responsible for persisting transaction data.
 }
 
 // NewTransactionPool initializes a new TransactionPool
