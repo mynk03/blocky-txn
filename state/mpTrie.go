@@ -22,7 +22,10 @@ func NewMptTrie() *MptTrie {
 func (m *MptTrie) PutAccount(address common.Address, account *Account) error {
 	addressBytes := addressToNibbles(address)
 	accountBytes := account.Serialize()
-	m.Trie.Put(addressBytes, accountBytes)
+	err := m.Trie.Put(addressBytes, accountBytes)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

@@ -28,7 +28,7 @@ func (suite *MptTrieTestSuite) TestPutAndGetAccount() {
 	}
 
 	// Create test address
-	address := common.HexToAddress("0xAbC1234567890dEf1234567890aBcDeF12345678")
+	address := common.HexToAddress(user1)
 
 	// Test Put
 	err := suite.trie.PutAccount(address, account)
@@ -43,9 +43,9 @@ func (suite *MptTrieTestSuite) TestPutAndGetAccount() {
 }
 
 func (suite *MptTrieTestSuite) TestGetNonExistentAccount() {
-	address := common.HexToAddress("0xAbC1234567890dEf1234567890aBcDeF12345678")
+	address := common.HexToAddress(user2)
 	account, err := suite.trie.GetAccount(address)
-	suite.Error(err)
+	suite.EqualError(err, "item not found")
 	suite.Nil(account)
 }
 
@@ -58,9 +58,9 @@ func (suite *MptTrieTestSuite) TestMultipleAccounts() {
 	}
 
 	addresses := []common.Address{
-		common.HexToAddress("0xAbC1234567890dEf1234567890aBcDeF12345678"),
-		common.HexToAddress("0xDeF1234567890AbC1234567890aBcDeF12345678"),
-		common.HexToAddress("0x1234567890AbCDeF1234567890aBcDeF12345678"),
+		common.HexToAddress(user1),
+		common.HexToAddress(user2),
+		common.HexToAddress(user3),
 	}
 
 	// Store all accounts
