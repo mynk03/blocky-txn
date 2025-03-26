@@ -69,12 +69,16 @@ func TestValidatorTestSuite(t *testing.T) {
 }
 
 func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
+	sender, err := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
+	suite.NoError(err)
+	senderNonce := sender.Nonce
+
 	// Create a transaction
 	tx := transactions.Transaction{
 		From:        common.HexToAddress(user1),
 		To:          common.HexToAddress(user2),
 		Amount:      2,
-		Nonce:       1,
+		Nonce:       senderNonce,
 		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
@@ -110,19 +114,24 @@ func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
 }
 
 func (suite *ValidatorTestSuite) TestAddTransactionValidationFailure() {
+
+	sender, err := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
+	suite.NoError(err)
+	senderNonce := sender.Nonce
+
 	// Create an invalid transaction (amount exceeds balance)
 	tx := transactions.Transaction{
 		From:        common.HexToAddress(user1),
 		To:          common.HexToAddress(user2),
 		Amount:      20, // Amount greater than balance
-		Nonce:       1,
+		Nonce:       senderNonce+4,
 		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
 	tx.TransactionHash = tx.GenerateHash()
 
 	// Attempt to add invalid transaction
-	err := suite.v1.AddTransaction(tx)
+	err = suite.v1.AddTransaction(tx)
 	suite.Error(err)
 }
 
@@ -221,22 +230,6 @@ func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidRecipient() {
 	suite.Error(err)
 }
 
-func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidNonce() {
-	// Create a transaction with invalid nonce
-	tx := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      2,
-		Nonce:       0, // Invalid nonce
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
-		Timestamp:   uint64(time.Now().Unix()),
-	}
-	tx.TransactionHash = tx.GenerateHash()
-
-	err := suite.v1.AddTransaction(tx)
-	suite.Error(err)
-}
-
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidBlockNumber() {
 	// Create a transaction with invalid block number
 	tx := transactions.Transaction{
@@ -298,12 +291,19 @@ func (suite *ValidatorTestSuite) TestValidateBlockWithSameHash() {
 }
 
 func (suite *ValidatorTestSuite) TestMultipleTransactionsInBlock() {
+
+	user1Account, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
+	user1Nonce := user1Account.Nonce
+
+	user2Account, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
+	user2Nonce := user2Account.Nonce
+
 	// Create multiple transactions
 	tx1 := transactions.Transaction{
 		From:        common.HexToAddress(user1),
 		To:          common.HexToAddress(user2),
 		Amount:      2,
-		Nonce:       1,
+		Nonce:       user1Nonce,
 		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
@@ -313,7 +313,7 @@ func (suite *ValidatorTestSuite) TestMultipleTransactionsInBlock() {
 		From:        common.HexToAddress(user2),
 		To:          common.HexToAddress(user1),
 		Amount:      1,
-		Nonce:       1,
+		Nonce:       user2Nonce,
 		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}

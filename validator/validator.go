@@ -58,7 +58,6 @@ func (v *Validator) ProposeNewBlock() blockchain.Block {
 
 	fmt.Println("here state trie before processing block", v.LocalChain.StateTrie.RootHash())
 	// process the transaction on the validator 's state trie
-	// transactions.ProcessTransactions(newBlock.Transactions, v.LocalChain.StateTrie)
 	blockchain.ProcessBlock(newBlock, v.LocalChain.StateTrie)
 
 	fmt.Println("here state trie after processing block", v.LocalChain.StateTrie.RootHash())
