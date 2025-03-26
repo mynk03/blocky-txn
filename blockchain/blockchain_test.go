@@ -55,7 +55,7 @@ func (suite *BlockchainTestSuite) TestGenesisBlockCreation() {
 	genesisBlock := suite.bc.Chain[0]
 
 	// Verify genesis block
-	suite.Equal(int(0), genesisBlock.Index)
+	suite.Equal(uint64(0), genesisBlock.Index)
 	suite.Equal("0", genesisBlock.PrevHash)
 	suite.NotEmpty(genesisBlock.Hash)
 	suite.NotEmpty(genesisBlock.StateRoot)
@@ -77,7 +77,7 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	receiverAddress := common.HexToAddress(ext_user1)
 
 	last_block_number := suite.bc.last_block_number
-	if last_block_number == 0 {
+	if len(suite.bc.Chain) == 0 {
 		suite.Fail("No genesis blocks in the chain")
 	}
 	prevBlock := suite.bc.Chain[last_block_number]
