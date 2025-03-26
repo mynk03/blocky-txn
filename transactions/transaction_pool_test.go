@@ -1,11 +1,13 @@
 package transactions
 
 import (
+	"bytes"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -73,21 +75,112 @@ func (suite *TransactionPoolTestSuite) TestAddInvalidTransaction() {
 }
 
 func (suite *TransactionPoolTestSuite) TestRemoveTransaction() {
-	tx1 := randomTransaction()
-	suite.tp.AddTransaction(tx1)
-	err := suite.tp.RemoveTransaction(tx1.TransactionHash)
+	// Create a test transaction
+	tx := Transaction{
+		From:        common.HexToAddress("0x123"),
+		To:          common.HexToAddress("0x456"),
+		Amount:      100,
+		Nonce:       1,
+		BlockNumber: 1,
+		Timestamp:   1234567890,
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Test removing non-existent transaction
+	err := suite.tp.RemoveTransaction("non_existent_hash")
+	suite.Error(err)
+	suite.Equal("transaction hash not found", err.Error())
+
+	// Add transaction to pool
+	suite.tp.PendingTransactions = append(suite.tp.PendingTransactions, tx)
+
+	// Test removing existing transaction
+	err = suite.tp.RemoveTransaction(tx.TransactionHash)
 	suite.NoError(err)
-	suite.NotContains(suite.tp.PendingTransactions, tx1)
+	suite.Len(suite.tp.PendingTransactions, 0)
+
+	// Test removing same transaction again
+	err = suite.tp.RemoveTransaction(tx.TransactionHash)
+	suite.Error(err)
+	suite.Equal("transaction hash not found", err.Error())
 }
 
 func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactions() {
-	tx2 := randomTransaction()
-	tx3 := randomTransaction()
+	// Create test transactions
+	txs := []Transaction{
+		randomTransaction(),
+		randomTransaction(),
+	}
 
-	suite.tp.AddTransaction(tx2)
-	suite.tp.RemoveBulkTransactions([]string{tx2.GenerateHash(), tx3.GenerateHash()})
-	suite.NotContains(suite.tp.PendingTransactions, tx2)
-	suite.NotContains(suite.tp.PendingTransactions, tx3)
+	// Generate hashes and add to pool
+	for _, tx := range txs {
+		tx.TransactionHash = tx.GenerateHash()
+		suite.tp.PendingTransactions = append(suite.tp.PendingTransactions, tx)
+	}
+
+	// Test removing multiple transactions
+	hashes := []string{
+		txs[0].TransactionHash,
+		txs[1].TransactionHash,
+		"non_existent_hash", // This should be logged but not cause an error
+	}
+
+	// Capture log output
+	var logBuffer bytes.Buffer
+	logrus.SetOutput(&logBuffer)
+
+	// Remove transactions
+	suite.tp.RemoveBulkTransactions(hashes)
+
+	// Verify transactions were removed
+	suite.Len(suite.tp.PendingTransactions, 0)
+
+	// Verify log output contains error for non-existent transaction
+	logString := logBuffer.String()
+	suite.Contains(logString, "failed to remove transaction")
+	suite.Contains(logString, "non_existent_hash")
+}
+
+func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactionsWithEmptyPool() {
+	// Test removing transactions from empty pool
+	hashes := []string{"hash1", "hash2"}
+	suite.tp.RemoveBulkTransactions(hashes)
+	suite.Len(suite.tp.PendingTransactions, 0)
+}
+
+func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactionsWithPartialSuccess() {
+	// Create test transactions
+	tx := Transaction{
+		From:        common.HexToAddress("0x123"),
+		To:          common.HexToAddress("0x456"),
+		Amount:      100,
+		Nonce:       1,
+		BlockNumber: 1,
+		Timestamp:   1234567890,
+	}
+	tx.TransactionHash = tx.GenerateHash()
+	suite.tp.PendingTransactions = append(suite.tp.PendingTransactions, tx)
+
+	// Test removing mix of existing and non-existing transactions
+	hashes := []string{
+		tx.TransactionHash,
+		"non_existent_hash",
+	}
+
+	// Capture log output
+	var logBuffer bytes.Buffer
+	logrus.SetOutput(&logBuffer)
+
+	// Remove transactions
+	suite.tp.RemoveBulkTransactions(hashes)
+
+	// Verify existing transaction was removed
+	suite.Len(suite.tp.PendingTransactions, 0)
+
+	// Verify log output contains error for non-existent transaction
+	logString := logBuffer.String()
+	suite.Contains(logString, "failed to remove transaction")
+	suite.Contains(logString, "non_existent_hash")
 }
 
 func (suite *TransactionPoolTestSuite) TestGetPendingTransactions() {
@@ -111,3 +204,5 @@ func (suite *TransactionPoolTestSuite) TestGetTransactionByHashNonExistent() {
 	foundTx := suite.tp.GetTransactionByHash(randomTransaction().TransactionHash)
 	suite.Nil(foundTx)
 }
+
+// Test related to the transaction.go

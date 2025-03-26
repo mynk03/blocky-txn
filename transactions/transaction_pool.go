@@ -3,16 +3,17 @@ package transactions
 import (
 	"errors"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
 
 // TransactionPool manages the lifecycle of transactions, including tracking pending and processed transactions.
 type TransactionPool struct {
-	PendingTransactions []Transaction             // List of transactions that are yet to be confirmed or finalized.
+	PendingTransactions []Transaction // List of transactions that are yet to be confirmed or finalized.
 }
 
 // NewTransactionPool initializes a new TransactionPool
-func NewTransactionPool() (*TransactionPool) {
+func NewTransactionPool() *TransactionPool {
 
 	transactionPool := &TransactionPool{
 		PendingTransactions: []Transaction{},
@@ -32,22 +33,32 @@ func (tp *TransactionPool) AddTransaction(tx Transaction) error {
 
 // RemoveTransaction removes a transaction from the PendingTransactions
 func (tp *TransactionPool) RemoveTransaction(hash string) error {
+	found := false
 	for i, tx := range tp.PendingTransactions {
 		if tx.TransactionHash == hash {
 			tp.PendingTransactions = slices.Delete(tp.PendingTransactions, i, i+1)
+			found = true
+			break
 		}
+	}
+	if !found {
+		return errors.New("transaction hash not found")
 	}
 	return nil
 }
 
 // RemoveBulkTransactions removes multiple transactions from the PendingTransactions
-func (tp *TransactionPool) RemoveBulkTransactions(hashes []string) error {
+func (tp *TransactionPool) RemoveBulkTransactions(hashes []string) {
 	for _, hash := range hashes {
-		if err := tp.RemoveTransaction(hash); err != nil {
-			return err
+		err := tp.RemoveTransaction(hash)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type":     "transaction_pool",
+				"error":    err,
+				"txn_hash": hash,
+			}).Error("failed to remove transaction")
 		}
 	}
-	return nil
 }
 
 // GetPendingTransactions returns the PendingTransactions
@@ -64,4 +75,3 @@ func (tp *TransactionPool) GetTransactionByHash(hash string) *Transaction {
 	}
 	return nil
 }
-
