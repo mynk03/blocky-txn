@@ -14,7 +14,6 @@ type LevelDBStorage struct {
 const (
 	transactionPrefix = "t:"      // Prefix used for storing transactions in the database, ensuring easy identification and retrieval.
 	pendingKey        = "pending" // Key used to store and retrieve all pending transactions.
-	allKey            = "all"     // Key used to store and retrieve all transactions, including pending, confirmed, and failed.
 )
 
 // Initialize storage
@@ -58,17 +57,6 @@ func (s *LevelDBStorage) GetTransaction(hash string) (Transaction, error) {
 // GetPendingTransactions gets all pending transactions from the database [Getter]
 func (s *LevelDBStorage) GetPendingTransactions() ([]Transaction, error) {
 	data, err := s.db.Get([]byte(pendingKey), nil)
-	if err != nil {
-		return nil, err
-	}
-	var transactions []Transaction
-	err = json.Unmarshal(data, &transactions)
-	return transactions, err
-}
-
-// GetAllTransactions gets all transactions from the database [Getter]
-func (s *LevelDBStorage) GetAllTransactions() ([]Transaction, error) {
-	data, err := s.db.Get([]byte(allKey), nil)
 	if err != nil {
 		return nil, err
 	}

@@ -69,7 +69,6 @@ func (suite *TransactionPoolTestSuite) TestAddTransaction() {
 	err := suite.tp.AddTransaction(tx1)
 	suite.NoError(err)
 	suite.Contains(suite.tp.PendingTransactions, tx1)
-	suite.Contains(suite.tp.AllTransactions, tx1)
 }
 
 func (suite *TransactionPoolTestSuite) TestAddInvalidTransaction() {
@@ -99,12 +98,6 @@ func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactions() {
 
 func (suite *TransactionPoolTestSuite) TestGetPendingTransactions() {
 	suite.Equal(0, len(suite.tp.GetPendingTransactions()))
-}
-
-func (suite *TransactionPoolTestSuite) TestGetAllTransactions() {
-	tx1 := randomTransaction()
-	suite.tp.AddTransaction(tx1)
-	suite.Equal(1, len(suite.tp.GetAllTransactions())) // Only tx1 should be in AllTransactions
 }
 
 func (suite *TransactionPoolTestSuite) TestGetTransactionByHash() {

@@ -7,7 +7,6 @@ type TransactionStorage interface {
 	// Getters
 	GetTransaction(hash string) (Transaction, error)
 	GetPendingTransactions() ([]Transaction, error)
-	GetAllTransactions() ([]Transaction, error)
 
 	// Remove
 	RemoveTransaction(hash string) error

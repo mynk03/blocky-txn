@@ -9,7 +9,6 @@ import (
 // TransactionPool manages the lifecycle of transactions, including tracking pending and processed transactions.
 type TransactionPool struct {
 	PendingTransactions []Transaction      // List of transactions that are yet to be confirmed or finalized.
-	AllTransactions     []Transaction      // List of all transactions that have passed through the pool, including pending and finalized ones.
 	storage             TransactionStorage // Storage layer responsible for persisting transaction data.
 }
 
@@ -18,7 +17,6 @@ func NewTransactionPool(storage TransactionStorage) (*TransactionPool, Transacti
 
 	transactionPool := &TransactionPool{
 		PendingTransactions: []Transaction{},
-		AllTransactions:     []Transaction{},
 		storage:             storage,
 	}
 
@@ -31,7 +29,6 @@ func (tp *TransactionPool) AddTransaction(tx Transaction) error {
 		return errors.New("invalid transaction")
 	}
 	tp.PendingTransactions = append(tp.PendingTransactions, tx)
-	tp.AllTransactions = append(tp.AllTransactions, tx)
 	if err := tp.storage.PutTransaction(tx); err != nil {
 		return err
 	}
@@ -66,21 +63,6 @@ func (tp *TransactionPool) GetPendingTransactions() []Transaction {
 	return tp.PendingTransactions
 }
 
-// GetAllTransactions returns the AllTransactions
-func (tp *TransactionPool) GetAllTransactions() []Transaction {
-	return tp.AllTransactions
-}
-
-// GetPendingTransactions returns the PendingTransactions From Storage
-func (tp *TransactionPool) GetPendingTransactionsFromStorage() ([]Transaction, error) {
-	return tp.storage.GetPendingTransactions()
-}
-
-// GetAllTransactions returns the AllTransactions From Storage
-func (tp *TransactionPool) GetAllTransactionsFromStorage() ([]Transaction, error) {
-	return tp.storage.GetAllTransactions()
-}
-
 // GetTransactionByHash returns a transaction by hash
 func (tp *TransactionPool) GetTransactionByHash(hash string) *Transaction {
 	for _, tx := range tp.PendingTransactions {
@@ -89,6 +71,11 @@ func (tp *TransactionPool) GetTransactionByHash(hash string) *Transaction {
 		}
 	}
 	return nil
+}
+
+// GetPendingTransactions returns the PendingTransactions From Storage
+func (tp *TransactionPool) GetPendingTransactionsFromStorage() ([]Transaction, error) {
+	return tp.storage.GetPendingTransactions()
 }
 
 // GetTransactionByHashFromStorage returns a transaction by hash from storage
