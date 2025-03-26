@@ -3,6 +3,7 @@ package blockchain
 import (
 	"blockchain-simulator/state"
 	"blockchain-simulator/transactions"
+	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,12 +16,11 @@ type StateRootTestSuite struct {
 	trie *state.MptTrie
 }
 
-func TestStateRootTestSuite(t *testing.T) {
-	suite.Run(t, new(StateRootTestSuite))
-}
-
 func (suite *StateRootTestSuite) SetupTest() {
 	suite.trie = state.NewMptTrie()
+}
+func TestStateRootTestSuite(t *testing.T) {
+	suite.Run(t, new(StateRootTestSuite))
 }
 
 func (suite *StateRootTestSuite) TestProcessBlockWithMissingAccounts() {
@@ -120,4 +120,36 @@ func (suite *StateRootTestSuite) TestProcessBlockWithValidAccounts() {
 	updatedReceiver, err := suite.trie.GetAccount(receiverAddr)
 	suite.NoError(err)
 	suite.Equal(uint64(600), updatedReceiver.Balance)
+}
+
+// TestInitializeStorage tests the InitializeStorage function
+func (suite *StateRootTestSuite) TestInitializeStorage() {
+
+	dbPath := "./chaindata"
+	// Call InitializeStorage with the test database path
+	storage := InitializeStorage()
+
+	// Ensure the LevelDB instance is initialized and no error occurred
+	suite.NotNil(storage)
+	suite.NotNil(storage.db)
+
+	// Optionally verify that the database was created by checking the files
+	_, err := os.Stat(dbPath)
+	suite.NoError(err, "The database should have been created in the specified path")
+}
+
+// TestInitializeStorage tests the InitializeStorage function
+func (suite *StateRootTestSuite) TestInitializeStorageWithInvalidPath() {
+
+	dbPath := ""
+	// Call InitializeStorage with the test database path
+	storage := InitializeStorage()
+
+	// Ensure the LevelDB instance is initialized and no error occurred
+	suite.NotNil(storage)
+	suite.NotNil(storage.db)
+
+	// Optionally verify that the database was created by checking the files
+	_, err := os.Stat(dbPath)
+	suite.Error(err)
 }

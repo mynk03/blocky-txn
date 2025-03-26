@@ -232,7 +232,7 @@ func (suite *BlockchainTestSuite) TestGetLatestBlock() {
 	latestBlock := suite.bc.GetLatestBlock()
 
 	block := suite.bc.GetBlockByHash(latestBlock.Hash)
-    suite.Equal(block, latestBlock)
+	suite.Equal(block, latestBlock)
 	// Verify it matches the last block in chain
 	suite.Equal(suite.bc.Chain[suite.bc.LastBlockNumber], latestBlock)
 

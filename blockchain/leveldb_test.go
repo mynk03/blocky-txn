@@ -11,7 +11,7 @@ import (
 
 // Test account addresses used throughout the test suite
 const (
-	testChainDataPath = "./testdata"                       // Path for test database storage
+	testChainDataPath = "./testdata"                                 // Path for test database storage
 	testUser1         = "0x100000100000000000000000000000000000000a" // First test user address
 	testUser2         = "0x100000100000000000000000000000000000000d" // Second test user address
 	testUser3         = "0x1000001000000000000000000000000000000010" // Third test user address

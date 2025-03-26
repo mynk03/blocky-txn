@@ -21,11 +21,6 @@ func ProcessBlock(block Block, trie *state.MptTrie) {
 			continue // Skip this transaction if receiver account doesn't exist
 		}
 
-		// Skip if either account is nil
-		if sender == nil || receiver == nil {
-			continue
-		}
-
 		// Update balances and nonce
 		sender.Balance -= tx.Amount
 		sender.Nonce++
