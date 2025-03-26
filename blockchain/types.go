@@ -8,7 +8,7 @@ import (
 
 // Block represents a block in the blockchain.
 type Block struct {
-	Index        int           // Block height
+	Index        uint64           // Block height
 	Timestamp    string        // Time of creation
 	Transactions []Transaction // Transactions in the block
 	PrevHash     string        // Hash of the previous block
@@ -23,7 +23,7 @@ type Blockchain struct {
 	StateTrie  *state.Trie      // Merkle Patricia Trie for account states
 	Validators []common.Address // List of validators (for PoS or round-robin)
 	Storage    Storage          // Add storage field
-	TotalBlocks uint64           // Total number of blocks in the chain
+	last_block_number uint64    // Last block number
 }
 
 // Transaction represents a transaction in the blockchain.
