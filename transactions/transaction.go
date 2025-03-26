@@ -8,7 +8,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/sirupsen/logrus"
 )
 
 // TransactionStatus represents the status of a transaction using an enum.
@@ -41,46 +40,6 @@ func (t *Transaction) GenerateHash() string {
 	return hex.EncodeToString(hash[:])
 }
 
-func ProcessTransactions(transactions []Transaction, trie *state.MptTrie) {
-	for _, tx := range transactions {
-		sender, err := trie.GetAccount(tx.From)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"type":    "trie_error",
-				"Account": sender,
-			}).Error(err)
-		}
-		receiver, err := trie.GetAccount(tx.To)
-		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"type":    "trie_error",
-				"Account": receiver,
-			}).Error(err)
-		}
-
-		// Validate sender balance and nonce
-		if sender.Balance < tx.Amount || sender.Nonce+1 != tx.Nonce {
-			// Log the error gracefully (no panic)
-			logrus.WithFields(logrus.Fields{
-				"type":               "transaction_validation",
-				"balance_validation": sender.Balance < tx.Amount,
-				"nonce_validation":   sender.Nonce != tx.Nonce,
-				"balance":            sender.Balance,
-			}).Error("Transaction_validation_failed")
-			continue // Skip invalid transactions
-		}
-
-		// Update balances and nonce
-		sender.Balance -= tx.Amount
-		sender.Nonce++
-		receiver.Balance += tx.Amount
-
-		// Save to state trie
-		trie.PutAccount(tx.From, sender)
-		trie.PutAccount(tx.To, receiver)
-	}
-}
-
 // Validate validates the transaction
 func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) {
 
@@ -97,13 +56,10 @@ func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) 
 		return false, ErrInsufficientFunds
 	}
 
-	if t.Nonce <= 0 && t.Nonce != senderAccount.Nonce {
+	if t.Nonce != senderAccount.Nonce {
 		return false, ErrInvalidNonce
 	}
 
-	if t.BlockNumber <= 0 {
-		return false, ErrInvalidBlockNumber
-	}
 	return true, nil
 }
 
@@ -122,13 +78,6 @@ func (t *Transaction) Validate() (bool, error) {
 		return false, ErrInvalidAmount
 	}
 
-	if t.Nonce <= 0 {
-		return false, ErrInvalidNonce
-	}
-
-	if t.BlockNumber <= 0 {
-		return false, ErrInvalidBlockNumber
-	}
 	return true, nil
 }
 
