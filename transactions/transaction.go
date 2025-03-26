@@ -46,14 +46,14 @@ func ProcessTransactions(transactions []Transaction, trie *state.MptTrie) {
 		sender, err := trie.GetAccount(tx.From)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
-				"type" : "trie_error",
+				"type":    "trie_error",
 				"Account": sender,
 			}).Error(err)
 		}
 		receiver, err := trie.GetAccount(tx.To)
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
-				"type" : "trie_error",
+				"type":    "trie_error",
 				"Account": receiver,
 			}).Error(err)
 		}
