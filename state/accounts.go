@@ -2,47 +2,44 @@ package state
 
 import (
 	"encoding/json"
+
 	"github.com/ethereum/go-ethereum/common"
+	log "github.com/sirupsen/logrus"
 )
 
 // Account represents a user account in the state trie.
 type Account struct {
-	Address common.Address // Use common.Address for the address
 	Balance uint64
 	Nonce   uint64
 }
 
 // Serialize serializes the account to bytes.
 func (a *Account) Serialize() []byte {
-	data, _ := json.Marshal(a)
+	data, err := json.Marshal(a)
+	if err != nil {
+		log.WithError(err).Error("Error serializing account")
+		return nil
+	}
 	return data
 }
 
 // Deserialize deserializes bytes to an account.
 func Deserialize(data []byte) *Account {
 	var account Account
-	json.Unmarshal(data, &account)
+	err := json.Unmarshal(data, &account)
+	if err != nil {
+		log.WithError(err).Error("Error deserializing account")
+		return nil
+	}
 	return &account
 }
 
-// PutAccount inserts/updates an account in the trie.
-func (t *Trie) PutAccount(address common.Address, account *Account) {
-	key := addressToNibbles(address) // Convert address to nibbles
-	t.insert(t.Root, key, account.Serialize())
-}
-
-// GetAccount retrieves an account from the trie.
-func (t *Trie) GetAccount(address common.Address) *Account {
-	key := addressToNibbles(address)
-	data := t.get(t.Root, key)
-	return Deserialize(data)
-}
-
-// Helper: Convert common.Address to nibbles (e.g., [20]byte -> [40]byte).
+// Function to convert Ethereum address to nibbles
 func addressToNibbles(address common.Address) []byte {
 	var nibbles []byte
 	for _, b := range address {
-		nibbles = append(nibbles, b>>4, b&0x0F)
+		nibbles = append(nibbles, b>>4)   // Upper nibble
+		nibbles = append(nibbles, b&0x0F) // Lower nibble
 	}
 	return nibbles
 }

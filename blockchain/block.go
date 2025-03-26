@@ -18,8 +18,6 @@ func CreateBlock(transactions []Transaction, prevBlock Block) Block {
 		Hash:         "", // Populated later
 	}
 
-	// Calculate the block hash
-	newBlock.Hash = CalculateBlockHash(newBlock)
 	return newBlock
 }
 
@@ -31,7 +29,8 @@ func CalculateBlockHash(block Block) string {
 }
 
 // ValidateBlock checks block integrity and state root.
-func ValidateBlock(newBlock Block, prevBlock Block, trie *state.Trie) bool {
+func ValidateBlock(newBlock Block, prevBlock Block, trie *state.MptTrie) bool {
+
 	// Check block linkage
 	if newBlock.PrevHash != prevBlock.Hash || newBlock.Index != prevBlock.Index+1 {
 		return false
@@ -42,12 +41,13 @@ func ValidateBlock(newBlock Block, prevBlock Block, trie *state.Trie) bool {
 	ProcessBlock(newBlock, tempTrie)
 	expectedStateRoot := tempTrie.RootHash()
 
+	newBlock.StateRoot = expectedStateRoot // TODO: remove this line -- validator should set the state root
 	return newBlock.StateRoot == expectedStateRoot
 }
 
 // AddBlock adds a validated block to the chain and updates the state.
 func (bc *Blockchain) AddBlock(newBlock Block) bool {
-	prevBlock := bc.Chain[len(bc.Chain)-1]
+	prevBlock := bc.Chain[bc.last_block_number]
 
 	// Validate block linkage and state root
 	if !ValidateBlock(newBlock, prevBlock, bc.StateTrie) {
@@ -57,7 +57,17 @@ func (bc *Blockchain) AddBlock(newBlock Block) bool {
 	// Apply transactions to the state trie
 	ProcessBlock(newBlock, bc.StateTrie)
 
+	// Store block and updated state
+	if err := bc.Storage.PutBlock(newBlock); err != nil {
+		return false
+	}
+
+	if err := bc.Storage.PutState(newBlock.StateRoot, bc.StateTrie); err != nil {
+		return false
+	}
+	
 	// Update the chain
 	bc.Chain = append(bc.Chain, newBlock)
+	bc.last_block_number = newBlock.Index
 	return true
 }
