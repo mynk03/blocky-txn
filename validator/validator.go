@@ -71,7 +71,7 @@ func (v *Validator) ProposeNewBlock() blockchain.Block {
 func (v *Validator) ValidateBlock(block blockchain.Block) bool {
 
 	// Check block linkage
-	if block.PrevHash == block.Hash || block.Index == v.LocalChain.LastBlockNumber {
+	if block.PrevHash == block.Hash || block.Index == v.LocalChain.LastBlockNumber || block.PrevHash == "" {
 		return false
 	}
 

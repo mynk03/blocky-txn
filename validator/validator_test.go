@@ -13,11 +13,8 @@ import (
 )
 
 const (
-	mainChainDataPath = "./testdata/main/chaindata"
-	chaindata1Path    = "./testdata/validator1/chaindata"
-	chaindata2Path    = "./testdata/validator2/chaindata"
-	pool1Path         = "./testdata/validator1/test_pool"
-	pool2Path         = "./testdata/validator2/test_pool"
+	chaindata1Path = "./testdata/validator1/chaindata"
+	chaindata2Path = "./testdata/validator2/chaindata"
 
 	user1     = "0x100000100000000000000000000000000000001a"
 	user2     = "0x100000100000000000000000000000000000000d"
@@ -29,44 +26,31 @@ const (
 
 type ValidatorTestSuite struct {
 	suite.Suite
-	bc          *blockchain.Blockchain
-	bc1         *blockchain.Blockchain
-	bc2         *blockchain.Blockchain
-	mainStorage blockchain.Storage
-	storage1    blockchain.Storage
-	storage2    blockchain.Storage
-	tp1         *transactions.TransactionPool
-	tp2         *transactions.TransactionPool
-	tp1Storage  transactions.TransactionStorage
-	tp2Storage  transactions.TransactionStorage
-	v1          *Validator
-	v2          *Validator
+	bc1      *blockchain.Blockchain
+	bc2      *blockchain.Blockchain
+	storage1 blockchain.Storage
+	storage2 blockchain.Storage
+	tp1      *transactions.TransactionPool
+	tp2      *transactions.TransactionPool
+	v1       *Validator
+	v2       *Validator
 }
 
 func (suite *ValidatorTestSuite) SetupTest() {
 	// Initialize storage for blockchain and both validators
-	suite.mainStorage, _ = blockchain.NewLevelDBStorage(mainChainDataPath)
-
 	suite.storage1, _ = blockchain.NewLevelDBStorage(chaindata1Path)
 	suite.storage2, _ = blockchain.NewLevelDBStorage(chaindata2Path)
 
 	// Initialize transaction pools
-	suite.tp1Storage = transactions.InitializeStorage(pool1Path)
-	suite.tp2Storage = transactions.InitializeStorage(pool2Path)
-	suite.tp1, _ = transactions.NewTransactionPool(suite.tp1Storage)
-	suite.tp2, _ = transactions.NewTransactionPool(suite.tp2Storage)
+	suite.tp1 = transactions.NewTransactionPool()
+	suite.tp2 = transactions.NewTransactionPool()
 
 	// Create two blockchains with different accounts
 	accountAddrs := []string{user1, user2}
 	amounts := []uint64{10, 5}
 
-	suite.bc = blockchain.NewBlockchain(suite.mainStorage, accountAddrs, amounts)
 	suite.bc1 = blockchain.NewBlockchain(suite.storage1, accountAddrs, amounts)
 	suite.bc2 = blockchain.NewBlockchain(suite.storage2, accountAddrs, amounts)
-
-	fmt.Println("Here Root Hash of main chain", suite.bc.StateTrie.RootHash())
-	fmt.Println("Here Root Hash of validator1 chain", suite.bc1.StateTrie.RootHash())
-	fmt.Println("Here Root Hash of validator2 chain", suite.bc2.StateTrie.RootHash())
 
 	// Create two validators
 	suite.v1 = NewValidator(common.HexToAddress(user1), suite.tp1, suite.bc1)
@@ -74,12 +58,8 @@ func (suite *ValidatorTestSuite) SetupTest() {
 }
 
 func (suite *ValidatorTestSuite) TearDownTest() {
-	suite.mainStorage.Close()
-
 	suite.storage1.Close()
 	suite.storage2.Close()
-	suite.tp1Storage.Close()
-	suite.tp2Storage.Close()
 
 	os.RemoveAll("./testdata")
 }
@@ -89,14 +69,13 @@ func TestValidatorTestSuite(t *testing.T) {
 }
 
 func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
-
 	// Create a transaction
 	tx := transactions.Transaction{
 		From:        common.HexToAddress(user1),
 		To:          common.HexToAddress(user2),
 		Amount:      2,
 		Nonce:       1,
-		BlockNumber: uint32(suite.bc.LastBlockNumber) + 1,
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
 	tx.TransactionHash = tx.GenerateHash()
@@ -137,32 +116,12 @@ func (suite *ValidatorTestSuite) TestAddTransactionValidationFailure() {
 		To:          common.HexToAddress(user2),
 		Amount:      20, // Amount greater than balance
 		Nonce:       1,
-		BlockNumber: uint32(suite.bc.LastBlockNumber) + 1,
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
 	tx.TransactionHash = tx.GenerateHash()
 
 	// Attempt to add invalid transaction
-	err := suite.v1.AddTransaction(tx)
-	suite.Error(err)
-}
-
-func (suite *ValidatorTestSuite) TestAddTransactionPoolFailure() {
-	// Create a valid transaction
-	tx := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      2,
-		Nonce:       1,
-		BlockNumber: uint32(suite.bc.LastBlockNumber) + 1,
-		Timestamp:   uint64(time.Now().Unix()),
-	}
-	tx.TransactionHash = tx.GenerateHash()
-
-	// Close the transaction pool storage to force failure
-	suite.tp1Storage.Close()
-
-	// Attempt to add transaction to closed pool
 	err := suite.v1.AddTransaction(tx)
 	suite.Error(err)
 }
@@ -184,7 +143,7 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidPrevHash() {
 func (suite *ValidatorTestSuite) TestValidateBlockInvalidIndex() {
 	// Create a block with invalid index
 	block := blockchain.Block{
-		Index:     suite.bc.LastBlockNumber, // Same as last block number
+		Index:     suite.bc1.LastBlockNumber, // Same as last block number
 		PrevHash:  "",
 		Timestamp: time.Now().UTC().String(),
 	}
@@ -202,21 +161,21 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 		To:          common.HexToAddress(user2),
 		Amount:      2,
 		Nonce:       1,
-		BlockNumber: uint32(suite.bc.LastBlockNumber) + 1,
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
 	tx.TransactionHash = tx.GenerateHash()
 
 	// Create a block with the transaction
 	block := blockchain.Block{
-		Index:        suite.bc.LastBlockNumber + 1,
-		PrevHash:     suite.bc.GetLatestBlock().Hash,
+		Index:        suite.bc1.LastBlockNumber + 1,
+		PrevHash:     suite.bc1.GetLatestBlock().Hash,
 		Transactions: []transactions.Transaction{tx},
 		Timestamp:    time.Now().UTC().String(),
 	}
 
 	// Process block on a temporary state trie
-	tempStateTrie := suite.bc.StateTrie.Copy()
+	tempStateTrie := suite.bc1.StateTrie.Copy()
 	blockchain.ProcessBlock(block, tempStateTrie)
 	block.StateRoot = tempStateTrie.RootHash()
 
