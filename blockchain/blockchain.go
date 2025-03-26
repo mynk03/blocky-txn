@@ -4,6 +4,7 @@ import (
 	"blockchain-simulator/state"
 
 	"github.com/ethereum/go-ethereum/common"
+	log "github.com/sirupsen/logrus"
 )
 
 func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uint64) *Blockchain {
@@ -24,29 +25,34 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 	}
 
 	return &Blockchain{
-		Chain:             []Block{genesisBlock},
-		StateTrie:         stateTrie,
-		Validators:        validators,
-		Storage:           storage,
-		last_block_number: genesisBlock.Index,
+		Chain:           []Block{genesisBlock},
+		StateTrie:       stateTrie,
+		Validators:      validators,
+		Storage:         storage,
+		LastBlockNumber: genesisBlock.Index,
 	}
 }
-func (bc *Blockchain) GetLatestBlockNumber() uint64 {
-	return bc.last_block_number
+
+func (bc *Blockchain) GetLatestBlock() Block {
+	return bc.Chain[bc.LastBlockNumber]
 }
 
-func (bc *Blockchain) GetLatestHash() string {
+func (bc *Blockchain) GetLatestBlockHash() string {
 	if len(bc.Chain) == 0 {
 		return ""
 	}
-	return bc.Chain[bc.last_block_number].Hash
+	return bc.Chain[bc.LastBlockNumber].Hash
 }
 
-func (bc *Blockchain) GetBlockByHash(hash string) *Block {
+func (bc *Blockchain) GetBlockByHash(hash string) Block {
 	for _, block := range bc.Chain {
 		if block.Hash == hash {
-			return &block
+			return block
 		}
 	}
-	return nil
+	log.WithFields(log.Fields{
+		"type": "block_not_found",
+		"hash": hash,
+	}).Error("Block not found")
+	return Block{}
 }

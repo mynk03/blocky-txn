@@ -26,7 +26,7 @@ func NewValidator(address common.Address, tp *transactions.TransactionPool, bc *
 }
 
 // ProposeBlock validates and adds transactions from the transaction pool to the blockchain
-func (v *Validator) ProposeBlock() blockchain.Block {
+func (v *Validator) ProposeNewBlock() blockchain.Block {
 	// Get all pending transaction from the transaction pool
 	pendingTxs := v.TransactionPool.GetPendingTransactions()
 
@@ -41,25 +41,16 @@ func (v *Validator) ProposeBlock() blockchain.Block {
 			continue
 		}
 
-		// Convert transactions.Transaction to blockchain.Transaction
-		blockchainTx := transactions.Transaction{
-			TransactionHash: tx.TransactionHash,
-			From:            tx.From,
-			To:              tx.To,
-			Amount:          tx.Amount,
-			Nonce:           tx.Nonce,
-			Timestamp:       tx.Timestamp,
-			Status:          tx.Status,
-		}
-		validTransactions = append(validTransactions, blockchainTx)
+		// only vaidate transactions are added to the block 
+		validTransactions = append(validTransactions, tx)
 	}
 	// Create a new block with the valid transaction
-	prevBlock := v.LocalChain.Chain[len(v.LocalChain.Chain)-1]
+	prevBlock := v.LocalChain.GetLatestBlock()
 	newBlock := blockchain.CreateBlock(validTransactions, prevBlock)
 
 	fmt.Println("here state trie before processing block", v.LocalChain.StateTrie.RootHash())
 	// process the transaction on the validator 's state trie
-	transactions.ProcessTransactions(newBlock.Transactions, v.LocalChain.StateTrie)
+	transactions.ProcessTransactions(newBlock.Transactions, *v.LocalChain.StateTrie)
 
 	fmt.Println("here state trie after processing block", v.LocalChain.StateTrie.RootHash())
 
@@ -79,10 +70,10 @@ func (v *Validator) ValidateBlock(block *blockchain.Block) bool {
 	}
 
 	// process the transaction on the validator's state trie
-	transactions.ProcessTransactions(block.Transactions, v.LocalChain.StateTrie)
+	tempStateTrie :=transactions.ProcessTransactions(block.Transactions, *v.LocalChain.StateTrie)
 
 	// validate the block state root
-	if block.StateRoot != v.LocalChain.StateTrie.RootHash() {
+	if block.StateRoot != tempStateTrie.RootHash() {
 		return false
 	} else {
 		return true

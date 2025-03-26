@@ -24,5 +24,5 @@ type Blockchain struct {
 	StateTrie         *state.MptTrie   // Merkle Patricia Trie for account states
 	Validators        []common.Address // List of validators (for PoS or round-robin)
 	Storage           Storage          // Add storage field
-	last_block_number uint64           // Last Block Number
+	LastBlockNumber uint64           // index of the last block in the chain
 }

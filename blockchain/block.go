@@ -74,6 +74,6 @@ func (bc *Blockchain) AddBlock(newBlock Block) (bool, error) {
 
 	// Update the chain
 	bc.Chain = append(bc.Chain, newBlock)
-	bc.last_block_number = newBlock.Index
+	bc.LastBlockNumber = newBlock.Index
 	return true, nil 
 }

@@ -77,7 +77,7 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	senderAddress := common.HexToAddress(user1)
 	receiverAddress := common.HexToAddress(ext_user1)
 
-	last_block_number := suite.bc.last_block_number
+	last_block_number := suite.bc.LastBlockNumber
 	if len(suite.bc.Chain) == 0 {
 		suite.Fail("No genesis blocks in the chain")
 	}
@@ -115,7 +115,7 @@ func (suite *BlockchainTestSuite) TestBlockPersistence() {
 		Nonce:  0,
 	}
 
-	latestHash := suite.bc.GetLatestHash()
+	latestHash := suite.bc.GetLatestBlockHash()
 	prevBlock, err := suite.storage.GetBlock(latestHash)
 	suite.NoError(err)
 
@@ -141,7 +141,7 @@ func (suite *BlockchainTestSuite) TestMultipleTransactions() {
 		{From: sender, To: receiver, Amount: 2, Nonce: 1},
 	}
 
-	latestHash := suite.bc.GetLatestHash()
+	latestHash := suite.bc.GetLatestBlockHash()
 	prevBlock, err := suite.storage.GetBlock(latestHash)
 	suite.NoError(err)
 
@@ -171,7 +171,7 @@ func (suite *BlockchainTestSuite) TestInvalidTransactions() {
 		Nonce:  0,
 	}
 
-	latestHash := suite.bc.GetLatestHash()
+	latestHash := suite.bc.GetLatestBlockHash()
 	prevBlock, err := suite.storage.GetBlock(latestHash)
 	suite.NoError(err)
 

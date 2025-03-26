@@ -41,7 +41,7 @@ func (t *Transaction) GenerateHash() string {
 	return hex.EncodeToString(hash[:])
 }
 
-func ProcessTransactions(transactions []Transaction, trie *state.MptTrie) {
+func ProcessTransactions(transactions []Transaction, trie state.MptTrie) state.MptTrie {
 
 	for _, tx := range transactions {
 		sender, err := trie.GetAccount(tx.From)
@@ -55,22 +55,9 @@ func ProcessTransactions(transactions []Transaction, trie *state.MptTrie) {
 		if err != nil {
 			logrus.WithFields(logrus.Fields{
 				"type" : "trie_error",
-				"Account": sender,
+				"Account": receiver,
 			}).Error(err)
 		}
-
-		// fmt.Println("here here proposing @1", trie.GetAccount(tx.From))
-		// fmt.Println("here here proposing @2", trie.GetAccount(tx.To))
-	
-		// fmt.Println("here here proposing @2.1", trie.GetAccount(tx.From))
-		// fmt.Println("here here proposing @2.2", trie.GetAccount(tx.To))
-
-		fmt.Println("sender balance", sender.Balance)
-		fmt.Println("txn amount ", tx.Amount)
-
-
-		fmt.Println("sender nonce", sender.Nonce)
-		fmt.Println("txn nonce ", tx.Nonce)
 
 		// Validate sender balance and nonce
 		if sender.Balance < tx.Amount || sender.Nonce+1 != tx.Nonce {
@@ -81,7 +68,6 @@ func ProcessTransactions(transactions []Transaction, trie *state.MptTrie) {
 				"nonce_validation":   sender.Nonce != tx.Nonce,
 				"balance":            sender.Balance,
 			}).Error("Transaction_validation_failed")
-			fmt.Println("continue txn not valid")
 			continue // Skip invalid transactions
 		}
 
@@ -93,13 +79,8 @@ func ProcessTransactions(transactions []Transaction, trie *state.MptTrie) {
 		// Save to state trie
 		trie.PutAccount(tx.From, sender)
 		trie.PutAccount(tx.To, receiver)
-
-	// 	fmt.Println("after putting proposing @1", trie.GetAccount(tx.From))
-	// 	fmt.Println("after putting proposing @2", trie.GetAccount(tx.To))
-	
-	// 	fmt.Println("after putting proposing @2.1", trie.GetAccount(tx.From))
-	// 	fmt.Println("after putting proposing @2.2", trie.GetAccount(tx.To))
 	}
+	return trie 
 }
 
 // Validate validates the transaction
