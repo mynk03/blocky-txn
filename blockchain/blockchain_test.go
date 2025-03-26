@@ -241,3 +241,10 @@ func (suite *BlockchainTestSuite) TestGetLatestBlock() {
 	suite.NotEmpty(latestBlock.Hash)
 	suite.NotEmpty(latestBlock.StateRoot)
 }
+
+func (suite *BlockchainTestSuite) TestGetBlockByHash() {
+	// delete all block from chain
+	suite.bc.Chain = []Block{}
+	block := suite.bc.GetLatestBlockHash()
+	suite.Equal("", block)
+}
