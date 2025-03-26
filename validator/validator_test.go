@@ -129,3 +129,101 @@ func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
 	suite.Equal(uint64(8), senderAcc1.Balance)   // 10 - 2
 	suite.Equal(uint64(7), receiverAcc1.Balance) // 5 + 2
 }
+
+func (suite *ValidatorTestSuite) TestAddTransactionValidationFailure() {
+	// Create an invalid transaction (amount exceeds balance)
+	tx := transactions.Transaction{
+		From:        common.HexToAddress(user1),
+		To:          common.HexToAddress(user2),
+		Amount:      20, // Amount greater than balance
+		Nonce:       1,
+		BlockNumber: uint32(suite.bc.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Attempt to add invalid transaction
+	err := suite.v1.AddTransaction(tx)
+	suite.Error(err)
+}
+
+func (suite *ValidatorTestSuite) TestAddTransactionPoolFailure() {
+	// Create a valid transaction
+	tx := transactions.Transaction{
+		From:        common.HexToAddress(user1),
+		To:          common.HexToAddress(user2),
+		Amount:      2,
+		Nonce:       1,
+		BlockNumber: uint32(suite.bc.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Close the transaction pool storage to force failure
+	suite.tp1Storage.Close()
+
+	// Attempt to add transaction to closed pool
+	err := suite.v1.AddTransaction(tx)
+	suite.Error(err)
+}
+
+func (suite *ValidatorTestSuite) TestValidateBlockInvalidPrevHash() {
+	// Create a block with invalid previous hash
+	block := blockchain.Block{
+		Index:     1,
+		PrevHash:  "", // Empty hash
+		Timestamp: time.Now().UTC().String(),
+	}
+	block.Hash = blockchain.CalculateBlockHash(block)
+
+	// Attempt to validate block
+	isValid := suite.v1.ValidateBlock(block)
+	suite.False(isValid)
+}
+
+func (suite *ValidatorTestSuite) TestValidateBlockInvalidIndex() {
+	// Create a block with invalid index
+	block := blockchain.Block{
+		Index:     suite.bc.LastBlockNumber, // Same as last block number
+		PrevHash:  "",
+		Timestamp: time.Now().UTC().String(),
+	}
+	block.Hash = blockchain.CalculateBlockHash(block)
+
+	// Attempt to validate block
+	isValid := suite.v1.ValidateBlock(block)
+	suite.False(isValid)
+}
+
+func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
+	// Create a transaction
+	tx := transactions.Transaction{
+		From:        common.HexToAddress(user1),
+		To:          common.HexToAddress(user2),
+		Amount:      2,
+		Nonce:       1,
+		BlockNumber: uint32(suite.bc.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Create a block with the transaction
+	block := blockchain.Block{
+		Index:        suite.bc.LastBlockNumber + 1,
+		PrevHash:     suite.bc.GetLatestBlock().Hash,
+		Transactions: []transactions.Transaction{tx},
+		Timestamp:    time.Now().UTC().String(),
+	}
+
+	// Process block on a temporary state trie
+	tempStateTrie := suite.bc.StateTrie.Copy()
+	blockchain.ProcessBlock(block, tempStateTrie)
+	block.StateRoot = tempStateTrie.RootHash()
+
+	// Modify the state root to make it invalid
+	block.StateRoot = "invalid_hash"
+
+	// Attempt to validate block
+	isValid := suite.v1.ValidateBlock(block)
+	suite.False(isValid)
+}
