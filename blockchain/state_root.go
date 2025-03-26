@@ -2,27 +2,34 @@ package blockchain
 
 import (
 	state "blockchain-simulator/state"
+	"errors"
 
-	log "github.com/sirupsen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 // ProcessBlock applies transactions to the state trie.
 // ProcessBlock updates the state trie with transactions from a block.
-func ProcessBlock(block Block, trie *state.MptTrie) {
+func ProcessBlock(block Block, trie *state.MptTrie) (bool, error) {
 
 	for _, tx := range block.Transactions {
 		sender, err := trie.GetAccount(tx.From)
 		if err == nil {
-			log.WithError(err).Error("Error in Retreiving account")
+			logrus.WithError(err).Error("Error in Retreiving account")
 		}
 		receiver, err := trie.GetAccount(tx.To)
 		if err == nil {
-			log.WithError(err).Error("Error serializing account")
+			logrus.WithError(err).Error("Error serializing account")
 		}
 
 		// Validate sender balance and nonce
 		if sender.Balance < tx.Amount || sender.Nonce != tx.Nonce {
-			continue // Skip invalid transactions
+			// Log the error gracefully (no panic)
+			logrus.WithFields(logrus.Fields{
+				"type":               "transaction_validation",
+				"balance_validation": sender.Balance < tx.Amount,
+				"nonce_validation":   sender.Nonce != tx.Nonce,
+			}).Error("Transaction_validation_failed")
+			return false, errors.New("transaction_validation_failed")
 		}
 
 		// Update balances and nonce
@@ -34,4 +41,5 @@ func ProcessBlock(block Block, trie *state.MptTrie) {
 		trie.PutAccount(tx.From, sender)
 		trie.PutAccount(tx.To, receiver)
 	}
+	return true, nil
 }

@@ -13,4 +13,5 @@ type Storage interface {
 	// State operations
 	PutState(stateRoot string, trie *state.MptTrie) error
 	GetState(stateRoot string) (*state.MptTrie, error)
+	Close() error
 }

@@ -22,14 +22,14 @@ const (
 // Initialize storage
 func InitializeStorage() *LevelDBStorage {
 	dbPath := "./chaindata"
-	storage, err := newLevelDBStorage(dbPath)
+	storage, err := NewLevelDBStorage(dbPath)
 	if err != nil {
 		log.Fatal(err)
 	}
 	return storage
 }
 
-func newLevelDBStorage(path string) (*LevelDBStorage, error) {
+func NewLevelDBStorage(path string) (*LevelDBStorage, error) {
 	db, err := leveldb.OpenFile(path, nil)
 	if err != nil {
 		return nil, err
@@ -89,4 +89,8 @@ func (s *LevelDBStorage) GetState(stateRoot string) (*state.MptTrie, error) {
 	var trie state.MptTrie
 	err = json.Unmarshal(data, &trie)
 	return &trie, err
+}
+
+func (s *LevelDBStorage) Close() error {
+	return s.db.Close()
 }

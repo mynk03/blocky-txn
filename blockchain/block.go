@@ -2,6 +2,7 @@ package blockchain
 
 import (
 	"blockchain-simulator/state"
+	"blockchain-simulator/transactions"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -9,7 +10,7 @@ import (
 )
 
 // CreateBlock creates a new block (without mining/PoW for now).
-func CreateBlock(transactions []Transaction, prevBlock Block) Block {
+func CreateBlock(transactions []transactions.Transaction, prevBlock Block) Block {
 	newBlock := Block{
 		Index:        prevBlock.Index + 1,
 		Timestamp:    time.Now().UTC().String(),
@@ -28,6 +29,7 @@ func CalculateBlockHash(block Block) string {
 	return hex.EncodeToString(hashBytes[:])
 }
 
+// ? TODO: Should remove this function from here, as it is moved to validator
 // ValidateBlock checks block integrity and state root.
 func ValidateBlock(newBlock Block, prevBlock Block, trie *state.MptTrie) bool {
 
@@ -41,33 +43,37 @@ func ValidateBlock(newBlock Block, prevBlock Block, trie *state.MptTrie) bool {
 	ProcessBlock(newBlock, tempTrie)
 	expectedStateRoot := tempTrie.RootHash()
 
-	newBlock.StateRoot = expectedStateRoot // TODO: remove this line -- validator should set the state root
+	newBlock.StateRoot = expectedStateRoot
 	return newBlock.StateRoot == expectedStateRoot
 }
 
 // AddBlock adds a validated block to the chain and updates the state.
-func (bc *Blockchain) AddBlock(newBlock Block) bool {
-	prevBlock := bc.Chain[bc.last_block_number]
+func (bc *Blockchain) AddBlock(newBlock Block) (bool, error) {
+	// prevBlock := bc.Chain[bc.TotalBlocks-1]
 
+
+	// ? TODO: could we remove this validation from here, as it is done in the validator?
 	// Validate block linkage and state root
-	if !ValidateBlock(newBlock, prevBlock, bc.StateTrie) {
-		return false
-	}
+	// if !ValidateBlock(newBlock, prevBlock, bc.StateTrie) {
+	// 	return false
+	// }
 
 	// Apply transactions to the state trie
-	ProcessBlock(newBlock, bc.StateTrie)
+	if success, err := ProcessBlock(newBlock, bc.StateTrie); !success{
+		return false, err
+	}
 
 	// Store block and updated state
 	if err := bc.Storage.PutBlock(newBlock); err != nil {
-		return false
+		return false, err
 	}
 
 	if err := bc.Storage.PutState(newBlock.StateRoot, bc.StateTrie); err != nil {
-		return false
+		return false, err
 	}
-	
+
 	// Update the chain
 	bc.Chain = append(bc.Chain, newBlock)
 	bc.last_block_number = newBlock.Index
-	return true
+	return true, nil 
 }

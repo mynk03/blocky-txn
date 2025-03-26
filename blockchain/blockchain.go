@@ -31,6 +31,9 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 		last_block_number: genesisBlock.Index,
 	}
 }
+func (bc *Blockchain) GetLatestBlockNumber() uint64 {
+	return bc.last_block_number
+}
 
 func (bc *Blockchain) GetLatestHash() string {
 	if len(bc.Chain) == 0 {
