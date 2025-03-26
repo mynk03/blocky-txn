@@ -29,7 +29,7 @@ func CalculateBlockHash(block Block) string {
 }
 
 // ValidateBlock checks block integrity and state root.
-func ValidateBlock(newBlock Block, prevBlock Block, trie *state.Trie) bool {
+func ValidateBlock(newBlock Block, prevBlock Block, trie *state.MptTrie) bool {
 
 	// Check block linkage
 	if newBlock.PrevHash != prevBlock.Hash || newBlock.Index != prevBlock.Index+1 {

@@ -34,28 +34,12 @@ func Deserialize(data []byte) *Account {
 	return &account
 }
 
-// PutAccount inserts/updates an account in the trie.
-func (t *Trie) PutAccount(address common.Address, account *Account) {
-	key := addressToNibbles(address) // Convert address to nibbles
-	t.insert(t.Root, key, account.Serialize())
-}
-
-// GetAccount retrieves an account from the trie.
-func (t *Trie) GetAccount(address common.Address) *Account {
-	key := addressToNibbles(address)
-	data := t.get(t.Root, key)
-	if data == nil {
-		log.WithField("address", address.Hex()).Error("No data found for address")
-		return nil
-	}
-	return Deserialize(data)
-}
-
-// Helper: Convert common.Address to nibbles (e.g., [20]byte -> [40]byte).
+// Function to convert Ethereum address to nibbles
 func addressToNibbles(address common.Address) []byte {
 	var nibbles []byte
 	for _, b := range address {
-		nibbles = append(nibbles, b>>4, b&0x0F)
+		nibbles = append(nibbles, b>>4)   // Upper nibble
+		nibbles = append(nibbles, b&0x0F) // Lower nibble
 	}
 	return nibbles
 }

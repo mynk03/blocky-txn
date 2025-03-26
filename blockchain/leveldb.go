@@ -72,7 +72,7 @@ func (s *LevelDBStorage) GetLatestBlock() (Block, error) {
 	return s.GetBlock(string(hash))
 }
 
-func (s *LevelDBStorage) PutState(stateRoot string, trie *state.Trie) error {
+func (s *LevelDBStorage) PutState(stateRoot string, trie *state.MptTrie) error {
 	data, err := json.Marshal(trie)
 	if err != nil {
 		return err
@@ -80,13 +80,13 @@ func (s *LevelDBStorage) PutState(stateRoot string, trie *state.Trie) error {
 	return s.db.Put([]byte(statePrefix+stateRoot), data, nil)
 }
 
-func (s *LevelDBStorage) GetState(stateRoot string) (*state.Trie, error) {
+func (s *LevelDBStorage) GetState(stateRoot string) (*state.MptTrie, error) {
 	data, err := s.db.Get([]byte(statePrefix+stateRoot), nil)
 	if err != nil {
 		return nil, err
 	}
 
-	var trie state.Trie
+	var trie state.MptTrie
 	err = json.Unmarshal(data, &trie)
 	return &trie, err
 }

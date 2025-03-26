@@ -12,7 +12,7 @@ const (
 	DbPath    = "./testdb"
 	user1     = "0x100000100000000000000000000000000000000a"
 	user2     = "0x100000100000000000000000000000000000000d"
-	ext_user1 = "0x1100001000000000000000000000000000000001"
+	ext_user1 = "0x1000001000000000000000000000000000000001"
 	ext_user2 = "0x1110001000000000000000000000000000000009"
 	user3     = "0x1000001000000000000000000000000000000010"
 	real_user = "0xfbB9295b7Cc91219c67cd2F6f2dec9891949769b"
@@ -61,9 +61,14 @@ func (suite *BlockchainTestSuite) TestGenesisBlockCreation() {
 	suite.NotEmpty(genesisBlock.StateRoot)
 	suite.Equal(genesisBlock.StateRoot, suite.bc.StateTrie.RootHash())
 
-	// verify balances
-	suite.Equal(uint64(10), suite.bc.StateTrie.GetAccount(common.HexToAddress(user1)).Balance)
-	suite.Equal(uint64(5), suite.bc.StateTrie.GetAccount(common.HexToAddress(user2)).Balance)
+	// verify balances with error handling
+	senderAcc, err := suite.bc.StateTrie.GetAccount(common.HexToAddress(user1))
+	suite.NoError(err)
+	suite.Equal(uint64(10), senderAcc.Balance)
+
+	receiverAcc, err := suite.bc.StateTrie.GetAccount(common.HexToAddress(user2))
+	suite.NoError(err)
+	suite.Equal(uint64(5), receiverAcc.Balance)
 }
 
 func (suite *BlockchainTestSuite) TestTransactionProcessing() {
@@ -88,12 +93,14 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	success := suite.bc.AddBlock(newBlock)
 	suite.True(success)
 
-	// Verify account balances after transaction
-	senderAcc := suite.bc.StateTrie.GetAccount(senderAddress)
+	// Verify account balances after transaction with error handling
+	senderAcc, err := suite.bc.StateTrie.GetAccount(senderAddress)
+	suite.NoError(err)
 	suite.Equal(uint64(7), senderAcc.Balance) // 10 - 3
 	suite.Equal(uint64(1), senderAcc.Nonce)
 
-	receiverAcc := suite.bc.StateTrie.GetAccount(receiverAddress)
+	receiverAcc, err := suite.bc.StateTrie.GetAccount(receiverAddress)
+	suite.NoError(err)
 	suite.Equal(uint64(3), receiverAcc.Balance) // 0 + 3
 }
 
@@ -139,12 +146,14 @@ func (suite *BlockchainTestSuite) TestMultipleTransactions() {
 	success := suite.bc.AddBlock(newBlock)
 	suite.True(success)
 
-	// Verify final balances
-	senderAcc := suite.bc.StateTrie.GetAccount(sender)
+	// Verify final balances with error handling
+	senderAcc, err := suite.bc.StateTrie.GetAccount(sender)
+	suite.NoError(err)
 	suite.Equal(uint64(5), senderAcc.Balance) // 10 - 3 - 2
 	suite.Equal(uint64(2), senderAcc.Nonce)
 
-	receiverAcc := suite.bc.StateTrie.GetAccount(receiver)
+	receiverAcc, err := suite.bc.StateTrie.GetAccount(receiver)
+	suite.NoError(err)
 	suite.Equal(uint64(5), receiverAcc.Balance) // 0 + 3 + 2
 	suite.Equal(uint64(0), receiverAcc.Nonce)
 }
