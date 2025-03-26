@@ -41,8 +41,7 @@ func (t *Transaction) GenerateHash() string {
 	return hex.EncodeToString(hash[:])
 }
 
-func ProcessTransactions(transactions []Transaction, trie state.MptTrie) state.MptTrie {
-
+func ProcessTransactions(transactions []Transaction, trie *state.MptTrie) {
 	for _, tx := range transactions {
 		sender, err := trie.GetAccount(tx.From)
 		if err != nil {
@@ -80,7 +79,6 @@ func ProcessTransactions(transactions []Transaction, trie state.MptTrie) state.M
 		trie.PutAccount(tx.From, sender)
 		trie.PutAccount(tx.To, receiver)
 	}
-	return trie 
 }
 
 // Validate validates the transaction

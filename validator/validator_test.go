@@ -3,6 +3,7 @@ package validator
 import (
 	"blockchain-simulator/blockchain"
 	"blockchain-simulator/transactions"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -63,6 +64,10 @@ func (suite *ValidatorTestSuite) SetupTest() {
 	suite.bc1 = blockchain.NewBlockchain(suite.storage1, accountAddrs, amounts)
 	suite.bc2 = blockchain.NewBlockchain(suite.storage2, accountAddrs, amounts)
 
+	fmt.Println("Here Root Hash of main chain", suite.bc.StateTrie.RootHash())
+	fmt.Println("Here Root Hash of validator1 chain", suite.bc1.StateTrie.RootHash())
+	fmt.Println("Here Root Hash of validator2 chain", suite.bc2.StateTrie.RootHash())
+
 	// Create two validators
 	suite.v1 = NewValidator(common.HexToAddress(user1), suite.tp1, suite.bc1)
 	suite.v2 = NewValidator(common.HexToAddress(user2), suite.tp2, suite.bc2)
@@ -97,13 +102,15 @@ func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
 	tx.TransactionHash = tx.GenerateHash()
 
 	// Add transaction to pool
-	suite.tp1.AddTransaction(tx)
+	suite.v1.AddTransaction(tx)
 
 	// Validator1 proposes a block
 	proposedBlock := suite.v1.ProposeNewBlock()
 
+	fmt.Println("Here Root Hash of validator1 chain", suite.bc1.StateTrie.RootHash())
+
 	// Validator2 validates the block
-	isValid := suite.v2.ValidateBlock(&proposedBlock)
+	isValid := suite.v2.ValidateBlock(proposedBlock)
 	suite.True(isValid)
 
 	// Add block to both blockchains

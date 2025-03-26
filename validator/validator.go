@@ -25,55 +25,67 @@ func NewValidator(address common.Address, tp *transactions.TransactionPool, bc *
 	}
 }
 
+// AddTransaction validates and adds a transaction to the transaction pool
+func (v *Validator) AddTransaction(tx transactions.Transaction) error {
+	// Validate transaction with current state
+	if status, err := tx.ValidateWithState(v.LocalChain.StateTrie); !status {
+		logrus.WithFields(logrus.Fields{
+			"type":  "transaction_validation",
+			"error": err,
+		}).Error("Transaction validation failed")
+		return err
+	}
+
+	// Add validated transaction to pool
+	if err := v.TransactionPool.AddTransaction(tx); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"type":  "transaction_pool",
+			"error": err,
+		}).Error("Failed to add transaction to pool")
+		return err
+	}
+
+	return nil
+}
+
 // ProposeBlock validates and adds transactions from the transaction pool to the blockchain
 func (v *Validator) ProposeNewBlock() blockchain.Block {
 	// Get all pending transaction from the transaction pool
 	pendingTxs := v.TransactionPool.GetPendingTransactions()
-
-	validTransactions := []transactions.Transaction{}
-	for _, tx := range pendingTxs {
-		if status, err := tx.ValidateWithState(v.LocalChain.StateTrie); !status {
-			// Log the error gracefully (no panic)
-			logrus.WithFields(logrus.Fields{
-				"type":  "transaction_validation",
-				"error": err,
-			}).Error("Transaction_validation_failed")
-			continue
-		}
-
-		// only vaidate transactions are added to the block 
-		validTransactions = append(validTransactions, tx)
-	}
 	// Create a new block with the valid transaction
 	prevBlock := v.LocalChain.GetLatestBlock()
-	newBlock := blockchain.CreateBlock(validTransactions, prevBlock)
+	newBlock := blockchain.CreateBlock(pendingTxs, prevBlock)
 
 	fmt.Println("here state trie before processing block", v.LocalChain.StateTrie.RootHash())
 	// process the transaction on the validator 's state trie
-	transactions.ProcessTransactions(newBlock.Transactions, *v.LocalChain.StateTrie)
+	// transactions.ProcessTransactions(newBlock.Transactions, v.LocalChain.StateTrie)
+	blockchain.ProcessBlock(newBlock, v.LocalChain.StateTrie)
 
 	fmt.Println("here state trie after processing block", v.LocalChain.StateTrie.RootHash())
-
-
 	// update the state root
 	newBlock.StateRoot = v.LocalChain.StateTrie.RootHash()
-
 	// return Block
 	return newBlock
 }
 
-func (v *Validator) ValidateBlock(block *blockchain.Block) bool {
+func (v *Validator) ValidateBlock(block blockchain.Block) bool {
 
 	// Check block linkage
-	if block.PrevHash != block.Hash || block.Index != block.Index+1 {
+	if block.PrevHash == block.Hash || block.Index == v.LocalChain.LastBlockNumber {
 		return false
 	}
 
+	tempStateTrie := v.LocalChain.StateTrie.Copy()
+
 	// process the transaction on the validator's state trie
-	tempStateTrie :=transactions.ProcessTransactions(block.Transactions, *v.LocalChain.StateTrie)
+	blockchain.ProcessBlock(block, tempStateTrie)
 
 	// validate the block state root
 	if block.StateRoot != tempStateTrie.RootHash() {
+		logrus.WithFields(logrus.Fields{
+			"type":  "block_validation",
+			"error": "Block state root validation failed",
+		}).Error("Block state root validation failed")
 		return false
 	} else {
 		return true
