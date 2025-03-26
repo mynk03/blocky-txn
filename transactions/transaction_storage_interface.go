@@ -12,4 +12,7 @@ type TransactionStorage interface {
 	// Remove
 	RemoveTransaction(hash string) error
 	RemoveBulkTransactions(hashes []string) error
+
+	// Close
+	Close() error
 }

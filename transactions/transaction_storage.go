@@ -92,3 +92,8 @@ func (s *LevelDBStorage) RemoveBulkTransactions(hashes []string) error {
 	}
 	return nil
 }
+
+// Close closes the database connection
+func (s *LevelDBStorage) Close() error {
+	return s.db.Close()
+}

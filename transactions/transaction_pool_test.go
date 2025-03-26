@@ -53,7 +53,7 @@ func (suite *TransactionPoolTestSuite) SetupTest() {
 // Teardown the test suite
 func (suite *TransactionPoolTestSuite) TearDownTest() {
 	if suite.storage != nil {
-		suite.storage.db.Close() // Ensure the database is closed
+		suite.storage.Close() // Ensure the database is closed
 	}
 	os.RemoveAll("test_pool_data")
 }

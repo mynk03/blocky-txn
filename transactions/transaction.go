@@ -1,11 +1,14 @@
 package transactions
 
 import (
+	"blockchain-simulator/state"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/sirupsen/logrus"
 )
 
 // TransactionStatus represents the status of a transaction using an enum.
@@ -38,29 +41,125 @@ func (t *Transaction) GenerateHash() string {
 	return hex.EncodeToString(hash[:])
 }
 
+func ProcessTransactions(transactions []Transaction, trie *state.MptTrie) {
+
+	for _, tx := range transactions {
+		sender, err := trie.GetAccount(tx.From)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type" : "trie_error",
+				"Account": sender,
+			}).Error(err)
+		}
+		receiver, err := trie.GetAccount(tx.To)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type" : "trie_error",
+				"Account": sender,
+			}).Error(err)
+		}
+
+		// fmt.Println("here here proposing @1", trie.GetAccount(tx.From))
+		// fmt.Println("here here proposing @2", trie.GetAccount(tx.To))
+	
+		// fmt.Println("here here proposing @2.1", trie.GetAccount(tx.From))
+		// fmt.Println("here here proposing @2.2", trie.GetAccount(tx.To))
+
+		fmt.Println("sender balance", sender.Balance)
+		fmt.Println("txn amount ", tx.Amount)
+
+
+		fmt.Println("sender nonce", sender.Nonce)
+		fmt.Println("txn nonce ", tx.Nonce)
+
+		// Validate sender balance and nonce
+		if sender.Balance < tx.Amount || sender.Nonce+1 != tx.Nonce {
+			// Log the error gracefully (no panic)
+			logrus.WithFields(logrus.Fields{
+				"type":               "transaction_validation",
+				"balance_validation": sender.Balance < tx.Amount,
+				"nonce_validation":   sender.Nonce != tx.Nonce,
+				"balance":            sender.Balance,
+			}).Error("Transaction_validation_failed")
+			fmt.Println("continue txn not valid")
+			continue // Skip invalid transactions
+		}
+
+		// Update balances and nonce
+		sender.Balance -= tx.Amount
+		sender.Nonce++
+		receiver.Balance += tx.Amount
+
+		// Save to state trie
+		trie.PutAccount(tx.From, sender)
+		trie.PutAccount(tx.To, receiver)
+
+	// 	fmt.Println("after putting proposing @1", trie.GetAccount(tx.From))
+	// 	fmt.Println("after putting proposing @2", trie.GetAccount(tx.To))
+	
+	// 	fmt.Println("after putting proposing @2.1", trie.GetAccount(tx.From))
+	// 	fmt.Println("after putting proposing @2.2", trie.GetAccount(tx.To))
+	}
+}
+
 // Validate validates the transaction
-func (t *Transaction) Validate() bool {
-	return t.isValidAddress() &&
-		t.isPositiveAmount() &&
-		t.isValidNonce() &&
-		t.hasSufficientBalance()
+func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) {
+
+	if status, err := t.Validate(); !status {
+		return false, err
+	}
+
+	senderAccount, _ := stateTrie.GetAccount(t.From)
+	if senderAccount == nil {
+		return false, ErrInvalidSender
+	}
+
+	if senderAccount.Balance < t.Amount {
+		return false, ErrInsufficientFunds
+	}
+
+	if t.Nonce <= 0 && t.Nonce != senderAccount.Nonce {
+		return false, ErrInvalidNonce
+	}
+
+	if t.BlockNumber <= 0 {
+		return false, ErrInvalidBlockNumber
+	}
+	return true, nil
 }
 
-func (t *Transaction) isValidAddress() bool {
-	return t.From != common.Address{} && t.To != common.Address{}
+// Validate validates the transaction
+func (t *Transaction) Validate() (bool, error) {
+
+	if t.From == (common.Address{}) {
+		return false, ErrInvalidSender
+	}
+
+	if t.To == (common.Address{}) {
+		return false, ErrInvalidRecipient
+	}
+
+	if t.Amount <= 0 {
+		return false, ErrInvalidAmount
+	}
+
+	if t.Nonce <= 0 {
+		return false, ErrInvalidNonce
+	}
+
+	if t.BlockNumber <= 0 {
+		return false, ErrInvalidBlockNumber
+	}
+	return true, nil
 }
 
-func (t *Transaction) isPositiveAmount() bool {
-	return t.Amount > 0
-}
-
-func (t *Transaction) isValidNonce() bool {
-	return t.Nonce > 0
-}
-
-func (t *Transaction) hasSufficientBalance() bool {
-	// sender balance ..
-	// TODO: need to integrate blockchain's mptTrie storage for sender balance
-	balance := uint64(10000)
-	return balance >= t.Amount
-}
+var (
+	ErrInvalidSender      = errors.New("invalid sender")
+	ErrInvalidRecipient   = errors.New("invalid recipient")
+	ErrInvalidAmount      = errors.New("invalid amount")
+	ErrInvalidNonce       = errors.New("invalid nonce")
+	ErrInvalidBlockNumber = errors.New("invalid block number")
+	ErrInsufficientFunds  = errors.New("insufficient funds")
+	ErrInvalidSignature   = errors.New("invalid signature")
+	ErrSignatureMismatch  = errors.New("signature doesn't match sender")
+)
