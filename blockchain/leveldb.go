@@ -163,6 +163,16 @@ func (s *LevelDBStorage) RemoveBulkTransactions(hashes []string) error {
 	return nil
 }
 
+// PutPendingTransactions stores a list of pending transactions in the database.
+// It serializes the transactions to JSON and stores them under the pendingKey.
+func (s *LevelDBStorage) PutPendingTransactions(txs []transactions.Transaction) error {
+	data, err := json.Marshal(txs)
+	if err != nil {
+		return err
+	}
+	return s.db.Put([]byte(pendingKey), data, nil)
+}
+
 // Close closes the database connection
 func (s *LevelDBStorage) Close() error {
 	return s.db.Close()
