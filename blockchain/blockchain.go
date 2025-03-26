@@ -5,9 +5,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func NewBlockchain() *Blockchain {
+func NewBlockchain(accountsToFund []string, amountsToFund []uint64) *Blockchain {
 	// Create the genesis block
-	genesisBlock := CreateGenesisBlock()
+	genesisBlock := CreateGenesisBlock(accountsToFund, amountsToFund)
 
 	// Initialize the state trie
 	stateTrie := state.NewTrie()
