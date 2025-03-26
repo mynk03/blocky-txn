@@ -2,7 +2,6 @@ package transactions
 
 import (
 	"math/rand"
-	"os"
 	"testing"
 	"time"
 
@@ -40,22 +39,17 @@ func randomTransaction() Transaction {
 // Define the test suite
 type TransactionPoolTestSuite struct {
 	suite.Suite
-	tp      *TransactionPool
-	storage *LevelDBStorage
+	tp *TransactionPool
 }
 
 // Setup the test suite
 func (suite *TransactionPoolTestSuite) SetupTest() {
-	suite.storage = InitializeStorage("test_pool_data")
-	suite.tp, _ = NewTransactionPool(suite.storage)
+	suite.tp = NewTransactionPool()
 }
 
 // Teardown the test suite
 func (suite *TransactionPoolTestSuite) TearDownTest() {
-	if suite.storage != nil {
-		suite.storage.Close() // Ensure the database is closed
-	}
-	os.RemoveAll("test_pool_data")
+
 }
 
 // Run the test suite
