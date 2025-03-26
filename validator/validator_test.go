@@ -186,3 +186,156 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 	isValid := suite.v1.ValidateBlock(block)
 	suite.False(isValid)
 }
+
+// New test cases for improved coverage
+
+func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidSender() {
+	// Create a transaction with invalid sender address
+	tx := transactions.Transaction{
+		From:        common.Address{}, // Empty address
+		To:          common.HexToAddress(user2),
+		Amount:      2,
+		Nonce:       1,
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	err := suite.v1.AddTransaction(tx)
+	suite.Error(err)
+}
+
+func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidRecipient() {
+	// Create a transaction with invalid recipient address
+	tx := transactions.Transaction{
+		From:        common.HexToAddress(user1),
+		To:          common.Address{}, // Empty address
+		Amount:      2,
+		Nonce:       1,
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	err := suite.v1.AddTransaction(tx)
+	suite.Error(err)
+}
+
+func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidNonce() {
+	// Create a transaction with invalid nonce
+	tx := transactions.Transaction{
+		From:        common.HexToAddress(user1),
+		To:          common.HexToAddress(user2),
+		Amount:      2,
+		Nonce:       0, // Invalid nonce
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	err := suite.v1.AddTransaction(tx)
+	suite.Error(err)
+}
+
+func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidBlockNumber() {
+	// Create a transaction with invalid block number
+	tx := transactions.Transaction{
+		From:        common.HexToAddress(user1),
+		To:          common.HexToAddress(user2),
+		Amount:      2,
+		Nonce:       1,
+		BlockNumber: 0, // Invalid block number
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	err := suite.v1.AddTransaction(tx)
+	suite.Error(err)
+}
+
+func (suite *ValidatorTestSuite) TestProposeNewBlockWithEmptyPool() {
+	// Propose a block with empty transaction pool
+	block := suite.v1.ProposeNewBlock()
+	suite.NotNil(block)
+	suite.Equal(0, len(block.Transactions))
+}
+
+func (suite *ValidatorTestSuite) TestValidateBlockWithInvalidTransactions() {
+	// Create a block with invalid transaction
+	tx := transactions.Transaction{
+		From:        common.HexToAddress(user1),
+		To:          common.HexToAddress(user2),
+		Amount:      20, // Amount greater than balance
+		Nonce:       1,
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	block := blockchain.Block{
+		Index:        suite.bc1.LastBlockNumber + 1,
+		PrevHash:     suite.bc1.GetLatestBlock().Hash,
+		Transactions: []transactions.Transaction{tx},
+		Timestamp:    time.Now().UTC().String(),
+	}
+
+	isValid := suite.v1.ValidateBlock(block)
+	suite.False(isValid)
+}
+
+func (suite *ValidatorTestSuite) TestValidateBlockWithSameHash() {
+	// Create a block with same hash as previous hash
+	prevBlock := suite.bc1.GetLatestBlock()
+	block := blockchain.Block{
+		Index:     suite.bc1.LastBlockNumber + 1,
+		PrevHash:  prevBlock.Hash, // Same as previous hash
+		Timestamp: time.Now().UTC().String(),
+	}
+	block.Hash = prevBlock.Hash // Same hash as previous block
+
+	isValid := suite.v1.ValidateBlock(block)
+	suite.False(isValid)
+}
+
+func (suite *ValidatorTestSuite) TestMultipleTransactionsInBlock() {
+	// Create multiple transactions
+	tx1 := transactions.Transaction{
+		From:        common.HexToAddress(user1),
+		To:          common.HexToAddress(user2),
+		Amount:      2,
+		Nonce:       1,
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx1.TransactionHash = tx1.GenerateHash()
+
+	tx2 := transactions.Transaction{
+		From:        common.HexToAddress(user2),
+		To:          common.HexToAddress(user1),
+		Amount:      1,
+		Nonce:       1,
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx2.TransactionHash = tx2.GenerateHash()
+
+	// Add transactions to pool
+	suite.v1.AddTransaction(tx1)
+	suite.v1.AddTransaction(tx2)
+
+	// Propose and validate block
+	block := suite.v1.ProposeNewBlock()
+	isValid := suite.v2.ValidateBlock(block)
+	suite.True(isValid)
+
+	// Add block to blockchain
+	success, err := suite.bc1.AddBlock(block)
+	suite.NoError(err)
+	suite.True(success)
+
+	// Verify final balances
+	senderAcc1, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
+	senderAcc2, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user2))
+	suite.Equal(uint64(9), senderAcc1.Balance) // 10 - 2 + 1
+	suite.Equal(uint64(6), senderAcc2.Balance) // 5 + 2 - 1
+}
