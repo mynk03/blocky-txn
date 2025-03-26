@@ -136,6 +136,11 @@ func (suite *StateRootTestSuite) TestInitializeStorage() {
 	// Optionally verify that the database was created by checking the files
 	_, err := os.Stat(dbPath)
 	suite.NoError(err, "The database should have been created in the specified path")
+
+	// close the storage
+	storage.Close()
+	// remove the database
+	os.RemoveAll(dbPath)
 }
 
 // TestInitializeStorage tests the InitializeStorage function

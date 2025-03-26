@@ -37,13 +37,7 @@ func (v *Validator) AddTransaction(tx transactions.Transaction) error {
 	}
 
 	// Add validated transaction to pool
-	if err := v.TransactionPool.AddTransaction(tx); err != nil {
-		logrus.WithFields(logrus.Fields{
-			"type":  "transaction_pool",
-			"error": err,
-		}).Error("Failed to add transaction to pool")
-		return err
-	}
+	v.TransactionPool.AddTransaction(tx)
 
 	return nil
 }

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -124,7 +125,7 @@ func (suite *ValidatorTestSuite) TestAddTransactionValidationFailure() {
 		From:        common.HexToAddress(user1),
 		To:          common.HexToAddress(user2),
 		Amount:      20, // Amount greater than balance
-		Nonce:       senderNonce+4,
+		Nonce:       senderNonce + 4,
 		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
@@ -338,4 +339,41 @@ func (suite *ValidatorTestSuite) TestMultipleTransactionsInBlock() {
 	senderAcc2, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user2))
 	suite.Equal(uint64(9), senderAcc1.Balance) // 10 - 2 + 1
 	suite.Equal(uint64(6), senderAcc2.Balance) // 5 + 2 - 1
+}
+
+func (suite *ValidatorTestSuite) TestValidatorErrorLogging() {
+	// Create a transaction with invalid amount (greater than balance)
+	tx := transactions.Transaction{
+		From:        common.HexToAddress(user1),
+		To:          common.HexToAddress(user2),
+		Amount:      20, // Amount greater than balance
+		Nonce:       1,
+		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Capture logrus output
+	var logOutput []byte
+	logrus.SetOutput(&logCapture{output: &logOutput})
+
+	// Attempt to add invalid transaction
+	err := suite.v1.AddTransaction(tx)
+	suite.Error(err)
+
+	// Verify error logs
+	logString := string(logOutput)
+	fmt.Println("Here logString", logString)
+	suite.Contains(logString, "Transaction validation failed")
+	suite.Contains(logString, "insufficient funds")
+}
+
+// logCapture implements io.Writer to capture logrus output
+type logCapture struct {
+	output *[]byte
+}
+
+func (l *logCapture) Write(p []byte) (n int, err error) {
+	*l.output = append(*l.output, p...)
+	return len(p), nil
 }
