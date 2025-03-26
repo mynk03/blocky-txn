@@ -71,11 +71,11 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	senderAddress := common.HexToAddress(user1)
 	receiverAddress := common.HexToAddress(ext_user1)
 
-	TotalBlocks := suite.bc.TotalBlocks
-	if TotalBlocks == 0 {
+	last_block_number := suite.bc.last_block_number
+	if last_block_number == 0 {
 		suite.Fail("No genesis blocks in the chain")
 	}
-	prevBlock := suite.bc.Chain[TotalBlocks-1]
+	prevBlock := suite.bc.Chain[last_block_number]
 
 	tx := Transaction{
 		From:   senderAddress,
@@ -88,15 +88,12 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	success := suite.bc.AddBlock(newBlock)
 	suite.True(success)
 
-	senderAcc := suite.bc.StateTrie.GetAccount(senderAddress)
-	receiverAcc := suite.bc.StateTrie.GetAccount(receiverAddress)
-
 	// Verify account balances after transaction
-	senderAcc = suite.bc.StateTrie.GetAccount(senderAddress)
+	senderAcc := suite.bc.StateTrie.GetAccount(senderAddress)
 	suite.Equal(uint64(7), senderAcc.Balance) // 10 - 3
 	suite.Equal(uint64(1), senderAcc.Nonce)
 
-	receiverAcc = suite.bc.StateTrie.GetAccount(receiverAddress)
+	receiverAcc := suite.bc.StateTrie.GetAccount(receiverAddress)
 	suite.Equal(uint64(3), receiverAcc.Balance) // 0 + 3
 }
 

@@ -47,7 +47,7 @@ func ValidateBlock(newBlock Block, prevBlock Block, trie *state.Trie) bool {
 
 // AddBlock adds a validated block to the chain and updates the state.
 func (bc *Blockchain) AddBlock(newBlock Block) bool {
-	prevBlock := bc.Chain[bc.TotalBlocks-1]
+	prevBlock := bc.Chain[bc.last_block_number]
 
 	// Validate block linkage and state root
 	if !ValidateBlock(newBlock, prevBlock, bc.StateTrie) {
@@ -68,6 +68,6 @@ func (bc *Blockchain) AddBlock(newBlock Block) bool {
 	
 	// Update the chain
 	bc.Chain = append(bc.Chain, newBlock)
-	bc.TotalBlocks++
+	bc.last_block_number = newBlock.Index
 	return true
 }
