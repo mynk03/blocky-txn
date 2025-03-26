@@ -12,8 +12,8 @@ type AccountTestSuite struct {
 }
 
 const (
-	user1      = "0x100000100000000000000000000000000000111a"
-	user2      = "0x100000100000000000000000000000000000111b"
+	user1     = "0x100000100000000000000000000000000000111a"
+	user2     = "0x100000100000000000000000000000000000111b"
 	ext_user1 = "0x1000001000000000000000000000000000000001"
 	ext_user2 = "0x1110001000000000000000000000000000000009"
 	user3     = "0x1000001000000000000000000000000000000010"
@@ -42,6 +42,21 @@ func (suite *AccountTestSuite) TestAccountSerialization() {
 	suite.Equal(account.Nonce, deserialized.Nonce)
 }
 
+func (suite *AccountTestSuite) TestAccountSerializationError() {
+	// Test serialization with nil account
+	var nilAccount *Account
+	serialized := nilAccount.Serialize()
+	suite.NotNil(serialized)
+	suite.Equal([]byte("null"), serialized)
+}
+
+func (suite *AccountTestSuite) TestAccountDeserializationError() {
+	// Test deserialization with invalid JSON data
+	invalidData := []byte("{invalid json}")
+	deserialized := Deserialize(invalidData)
+	suite.Nil(deserialized)
+}
+
 func (suite *AccountTestSuite) TestAddressToNibbles() {
 	address := common.HexToAddress("0xAbC1234567890dEf1234567890aBcDeF12345678")
 	nibbles := addressToNibbles(address)
@@ -58,7 +73,7 @@ func (suite *AccountTestSuite) TestAllAddressesToNibbles() {
 	// Map of test addresses
 	addresses := map[string]common.Address{
 		"user1":     common.HexToAddress(user1),
-		"user2":     common.HexToAddress(user2), 
+		"user2":     common.HexToAddress(user2),
 		"ext_user1": common.HexToAddress(ext_user1),
 		"ext_user2": common.HexToAddress(ext_user2),
 		"user3":     common.HexToAddress(user3),
@@ -67,7 +82,7 @@ func (suite *AccountTestSuite) TestAllAddressesToNibbles() {
 
 	for name, addr := range addresses {
 		nibbles := addressToNibbles(addr)
-		
+
 		// Check length is correct (20 bytes * 2 nibbles per byte)
 		suite.Equal(40, len(nibbles), "Wrong nibble length for %s", name)
 
@@ -79,14 +94,13 @@ func (suite *AccountTestSuite) TestAllAddressesToNibbles() {
 		}
 
 		// Compare with original address
-		suite.Equal(addr.Bytes(), reconstructed, 
-			"Address reconstruction failed for %s - nibbles collapsed or corrupted", name)
+		suite.Equal(addr.Bytes(), reconstructed,
+			"Address reconstruction failed for %s - nibbles collapsed or corrupted")
 
 		// Verify each nibble is in valid range (0-15)
 		for i, nib := range nibbles {
-			suite.LessOrEqual(nib, byte(15), 
+			suite.LessOrEqual(nib, byte(15),
 				"Nibble out of range for %s at position %d", name, i)
 		}
 	}
 }
-
