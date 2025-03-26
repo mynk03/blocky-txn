@@ -24,11 +24,12 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 	}
 
 	return &Blockchain{
-		Chain:      []Block{genesisBlock},
-		StateTrie:  stateTrie,
-		Validators: validators,
-		Storage:    storage,
-		TotalBlocks:     1,
+		Chain:             []Block{genesisBlock},
+		StateTrie:         stateTrie,
+		PendingTxs:        []Transaction{},
+		Validators:        validators,
+		Storage:           storage,
+		last_block_number: genesisBlock.Index,
 	}
 }
 
@@ -36,7 +37,7 @@ func (bc *Blockchain) GetLatestHash() string {
 	if len(bc.Chain) == 0 {
 		return ""
 	}
-	return bc.Chain[len(bc.Chain)-1].Hash
+	return bc.Chain[bc.last_block_number].Hash
 }
 
 func (bc *Blockchain) GetBlockByHash(hash string) *Block {

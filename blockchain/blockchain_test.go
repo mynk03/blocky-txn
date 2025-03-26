@@ -76,11 +76,11 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	senderAddress := common.HexToAddress(user1)
 	receiverAddress := common.HexToAddress(ext_user1)
 
-	TotalBlocks := suite.bc.TotalBlocks
-	if TotalBlocks == 0 {
+	last_block_number := suite.bc.last_block_number
+	if last_block_number == 0 {
 		suite.Fail("No genesis blocks in the chain")
 	}
-	prevBlock := suite.bc.Chain[TotalBlocks-1]
+	prevBlock := suite.bc.Chain[last_block_number]
 
 	tx := Transaction{
 		From:   senderAddress,
