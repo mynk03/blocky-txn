@@ -2,12 +2,15 @@ package transactions
 
 import (
 	"blockchain-simulator/state"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/ethereum/go-ethereum/common"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
 // TransactionStatus represents the status of a transaction using an enum.
@@ -28,6 +31,7 @@ type Transaction struct {
 	Status          TransactionStatus // Finality status of the Transaction
 	Amount          uint64            // Amount to transfer
 	Nonce           uint64            // Sender's transaction count
+	Signature       []byte            // Transaction signature
 }
 
 // TransactionHash will always uniques as the sender could not have same nonce
@@ -40,11 +44,39 @@ func (t *Transaction) GenerateHash() string {
 	return hex.EncodeToString(hash[:])
 }
 
+// Verify verifies the transaction signature
+func (t *Transaction) Verify() bool {
+	if t.Signature == nil {
+		fmt.Println("No signature found")
+		return false
+	}
+
+	// Generate transaction hash
+	txHash := common.HexToHash(t.GenerateHash())
+
+	sigPublicKey, err := ethcrypto.Ecrecover(txHash.Bytes(), t.Signature)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("sigPublicKey:", sigPublicKey)
+	fmt.Println("t.From.Bytes():", t.From.Bytes())
+
+	// Compare the public key with the sender's address
+	matches := bytes.Equal(sigPublicKey, t.From.Bytes())
+	fmt.Println("Signature verified:", matches)
+	return matches
+}
+
 // Validate validates the transaction
 func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) {
-
 	if status, err := t.Validate(); !status {
 		return false, err
+	}
+
+	// Verify signature
+	if !t.Verify() {
+		return false, ErrInvalidSignature
 	}
 
 	senderAccount, _ := stateTrie.GetAccount(t.From)
@@ -65,7 +97,6 @@ func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) 
 
 // Validate validates the transaction
 func (t *Transaction) Validate() (bool, error) {
-
 	if t.From == (common.Address{}) {
 		return false, ErrInvalidSender
 	}
