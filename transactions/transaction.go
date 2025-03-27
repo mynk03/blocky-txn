@@ -2,7 +2,6 @@ package transactions
 
 import (
 	"blockchain-simulator/state"
-	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -59,11 +58,11 @@ func (t *Transaction) Verify() bool {
 		log.Fatal(err)
 	}
 
-	fmt.Println("sigPublicKey:", sigPublicKey)
-	fmt.Println("t.From.Bytes():", t.From.Bytes())
+	// Convert the recovered public key to an address
+	recoveredAddr := common.BytesToAddress(ethcrypto.Keccak256(sigPublicKey[1:])[12:])
 
-	// Compare the public key with the sender's address
-	matches := bytes.Equal(sigPublicKey, t.From.Bytes())
+	// Compare the recovered address with the sender's address
+	matches := recoveredAddr == t.From
 	fmt.Println("Signature verified:", matches)
 	return matches
 }
