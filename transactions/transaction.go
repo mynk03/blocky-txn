@@ -67,17 +67,14 @@ func (t *Transaction) Verify() bool {
 	return matches
 }
 
-// Validate validates the transaction
+// ValidateWithState validates the transaction with state
 func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) {
+	// First check basic validation
 	if status, err := t.Validate(); !status {
 		return false, err
 	}
 
-	// Verify signature
-	if !t.Verify() {
-		return false, ErrInvalidSignature
-	}
-
+	// Check sender account exists and has sufficient funds
 	senderAccount, _ := stateTrie.GetAccount(t.From)
 	if senderAccount == nil {
 		return false, ErrInvalidSender
@@ -89,6 +86,11 @@ func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) 
 
 	if t.Nonce != senderAccount.Nonce {
 		return false, ErrInvalidNonce
+	}
+
+	// Finally verify signature
+	if !t.Verify() {
+		return false, ErrInvalidSignature
 	}
 
 	return true, nil
