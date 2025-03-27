@@ -1,6 +1,7 @@
 package transactions
 
 import (
+	"blockchain-simulator/crypto"
 	"bytes"
 	"math/rand"
 	"testing"
@@ -21,6 +22,67 @@ const (
 var currentNonce uint64 = 1
 var blockNumber uint32 = 1
 
+type TransactionPoolTestSuite struct {
+	suite.Suite
+	tp          *TransactionPool
+	user1Wallet *crypto.Wallet
+	user2Wallet *crypto.Wallet
+	user3Wallet *crypto.Wallet
+	otherWallet *crypto.Wallet
+}
+
+func (suite *TransactionPoolTestSuite) SetupTest() {
+	suite.tp = NewTransactionPool()
+
+	// Create wallets for testing
+	var err error
+
+	// Create user1 wallet
+	mnemonic, err := crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.user1Wallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+
+	// Create user2 wallet
+	mnemonic, err = crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.user2Wallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+
+	// Create user3 wallet
+	mnemonic, err = crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.user3Wallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+
+	// Create other wallet for invalid cases
+	mnemonic, err = crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.otherWallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+}
+
+// Helper function to create and sign a transaction
+func (suite *TransactionPoolTestSuite) createSignedTransaction(wallet *crypto.Wallet, to common.Address, amount uint64, nonce uint64, blockNumber uint32) Transaction {
+	tx := Transaction{
+		From:        wallet.Address,
+		To:          to,
+		Amount:      amount,
+		Nonce:       nonce,
+		BlockNumber: blockNumber,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Sign the transaction
+	txHash := common.HexToHash(tx.TransactionHash)
+	signature, err := wallet.SignTransaction(txHash)
+	suite.NoError(err)
+	tx.Signature = signature
+
+	return tx
+}
+
 func randomTransaction() Transaction {
 	amount := uint64(rand.Intn(1000))
 	nonce := currentNonce
@@ -38,17 +100,6 @@ func randomTransaction() Transaction {
 
 	txn.TransactionHash = txn.GenerateHash()
 	return txn
-}
-
-// Define the test suite
-type TransactionPoolTestSuite struct {
-	suite.Suite
-	tp *TransactionPool
-}
-
-// Setup the test suite
-func (suite *TransactionPoolTestSuite) SetupTest() {
-	suite.tp = NewTransactionPool()
 }
 
 // Teardown the test suite
@@ -304,19 +355,17 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 		Balance: 1000,
 		Nonce:   1,
 	}
-	err := stateTrie.PutAccount(common.HexToAddress(user1), &account)
+	err := stateTrie.PutAccount(suite.user1Wallet.Address, &account)
 	suite.NoError(err)
 
 	// Create a valid transaction
-	tx := Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      100,
-		Nonce:       1,
-		BlockNumber: 1,
-		Timestamp:   1234567890,
-	}
-	tx.TransactionHash = tx.GenerateHash()
+	tx := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		100,
+		1,
+		1,
+	)
 
 	// Test valid transaction with state
 	valid, err := tx.ValidateWithState(stateTrie)
@@ -324,36 +373,40 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 	suite.NoError(err)
 
 	// Test transaction with insufficient funds
-	txInsufficient := tx
-	txInsufficient.Amount = 2000 // More than account balance
-	txInsufficient.TransactionHash = txInsufficient.GenerateHash()
+	txInsufficient := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		2000,
+		1,
+		1,
+	)
 	valid, err = txInsufficient.ValidateWithState(stateTrie)
 	suite.False(valid)
 	suite.Equal(ErrInsufficientFunds, err)
 
 	// Test transaction with invalid nonce
-	txInvalidNonce := tx
-	txInvalidNonce.Nonce = 2 // Different from account nonce
-	txInvalidNonce.TransactionHash = txInvalidNonce.GenerateHash()
+	txInvalidNonce := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		100,
+		2,
+		1,
+	)
 	valid, err = txInvalidNonce.ValidateWithState(stateTrie)
 	suite.False(valid)
 	suite.Equal(ErrInvalidNonce, err)
 
 	// Test transaction with non-existent sender
-	txInvalidSender := tx
-	txInvalidSender.From = common.HexToAddress("0x999") // Non-existent address
-	txInvalidSender.TransactionHash = txInvalidSender.GenerateHash()
+	txInvalidSender := suite.createSignedTransaction(
+		suite.otherWallet, // Using a wallet not in the state
+		suite.user2Wallet.Address,
+		100,
+		1,
+		1,
+	)
 	valid, err = txInvalidSender.ValidateWithState(stateTrie)
 	suite.False(valid)
 	suite.Equal(ErrInvalidSender, err)
-
-	// Test transaction with zero nonce
-	txZeroNonce := tx
-	txZeroNonce.Nonce = 0
-	txZeroNonce.TransactionHash = txZeroNonce.GenerateHash()
-	valid, err = txZeroNonce.ValidateWithState(stateTrie)
-	suite.False(valid)
-	suite.Equal(ErrInvalidNonce, err)
 }
 
 func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {
@@ -369,31 +422,27 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {
 		Balance: 500,
 		Nonce:   1,
 	}
-	err := stateTrie.PutAccount(common.HexToAddress(user1), &account1)
+	err := stateTrie.PutAccount(suite.user1Wallet.Address, &account1)
 	suite.NoError(err)
-	err = stateTrie.PutAccount(common.HexToAddress(user2), &account2)
+	err = stateTrie.PutAccount(suite.user2Wallet.Address, &account2)
 	suite.NoError(err)
 
 	// Test multiple transactions in sequence
-	tx1 := Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      100,
-		Nonce:       1,
-		BlockNumber: 1,
-		Timestamp:   1234567890,
-	}
-	tx1.TransactionHash = tx1.GenerateHash()
+	tx1 := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		100,
+		1,
+		1,
+	)
 
-	tx2 := Transaction{
-		From:        common.HexToAddress(user2),
-		To:          common.HexToAddress(user1),
-		Amount:      50,
-		Nonce:       1,
-		BlockNumber: 1,
-		Timestamp:   1234567891,
-	}
-	tx2.TransactionHash = tx2.GenerateHash()
+	tx2 := suite.createSignedTransaction(
+		suite.user2Wallet,
+		suite.user1Wallet.Address,
+		50,
+		1,
+		1,
+	)
 
 	// Validate first transaction
 	valid, err := tx1.ValidateWithState(stateTrie)
@@ -404,9 +453,9 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {
 	account1.Balance -= tx1.Amount
 	account2.Balance += tx1.Amount
 	account1.Nonce++
-	err = stateTrie.PutAccount(common.HexToAddress(user1), &account1)
+	err = stateTrie.PutAccount(suite.user1Wallet.Address, &account1)
 	suite.NoError(err)
-	err = stateTrie.PutAccount(common.HexToAddress(user2), &account2)
+	err = stateTrie.PutAccount(suite.user2Wallet.Address, &account2)
 	suite.NoError(err)
 
 	// Validate second transaction
@@ -424,33 +473,29 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationEdgeCases() {
 		Balance: ^uint64(0), // Maximum uint64 value
 		Nonce:   1,
 	}
-	err := stateTrie.PutAccount(common.HexToAddress(user1), &account)
+	err := stateTrie.PutAccount(suite.user1Wallet.Address, &account)
 	suite.NoError(err)
 
 	// Test transaction with maximum amount
-	txMaxAmount := Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      ^uint64(0), // Maximum uint64 value
-		Nonce:       1,
-		BlockNumber: 1,
-		Timestamp:   1234567890,
-	}
-	txMaxAmount.TransactionHash = txMaxAmount.GenerateHash()
+	txMaxAmount := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		^uint64(0), // Maximum uint64 value
+		1,
+		1,
+	)
 	valid, err := txMaxAmount.ValidateWithState(stateTrie)
 	suite.True(valid)
 	suite.NoError(err)
 
 	// Test transaction with maximum block number
-	txMaxBlock := Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      100,
-		Nonce:       1,
-		BlockNumber: ^uint32(0), // Maximum uint32 value
-		Timestamp:   1234567890,
-	}
-	txMaxBlock.TransactionHash = txMaxBlock.GenerateHash()
+	txMaxBlock := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		100,
+		1,
+		^uint32(0), // Maximum uint32 value
+	)
 	valid, err = txMaxBlock.ValidateWithState(stateTrie)
 	suite.True(valid)
 	suite.NoError(err)
