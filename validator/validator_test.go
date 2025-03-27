@@ -2,6 +2,7 @@ package validator
 
 import (
 	"blockchain-simulator/blockchain"
+	"blockchain-simulator/crypto"
 	"blockchain-simulator/transactions"
 	"fmt"
 	"os"
@@ -27,17 +28,62 @@ const (
 
 type ValidatorTestSuite struct {
 	suite.Suite
-	bc1      *blockchain.Blockchain
-	bc2      *blockchain.Blockchain
-	storage1 blockchain.Storage
-	storage2 blockchain.Storage
-	tp1      *transactions.TransactionPool
-	tp2      *transactions.TransactionPool
-	v1       *Validator
-	v2       *Validator
+	bc1            *blockchain.Blockchain
+	bc2            *blockchain.Blockchain
+	storage1       blockchain.Storage
+	storage2       blockchain.Storage
+	tp1            *transactions.TransactionPool
+	tp2            *transactions.TransactionPool
+	v1             *Validator
+	v2             *Validator
+	user1Wallet    *crypto.Wallet
+	user2Wallet    *crypto.Wallet
+	user3Wallet    *crypto.Wallet
+	extUser1Wallet *crypto.Wallet
+	extUser2Wallet *crypto.Wallet
+	realUserWallet *crypto.Wallet
 }
 
 func (suite *ValidatorTestSuite) SetupTest() {
+	// Create wallets for all users
+	var err error
+
+	// Create user1 wallet
+	mnemonic, err := crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.user1Wallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+
+	// Create user2 wallet
+	mnemonic, err = crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.user2Wallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+
+	// Create user3 wallet
+	mnemonic, err = crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.user3Wallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+
+	// Create external user1 wallet
+	mnemonic, err = crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.extUser1Wallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+
+	// Create external user2 wallet
+	mnemonic, err = crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.extUser2Wallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+
+	// Create real user wallet
+	mnemonic, err = crypto.GenerateMnemonic()
+	suite.NoError(err)
+	suite.realUserWallet, err = crypto.GetWallet(mnemonic)
+	suite.NoError(err)
+
 	// Initialize storage for blockchain and both validators
 	suite.storage1, _ = blockchain.NewLevelDBStorage(chaindata1Path)
 	suite.storage2, _ = blockchain.NewLevelDBStorage(chaindata2Path)
@@ -47,15 +93,19 @@ func (suite *ValidatorTestSuite) SetupTest() {
 	suite.tp2 = transactions.NewTransactionPool()
 
 	// Create two blockchains with different accounts
-	accountAddrs := []string{user1, user2}
+	// Use actual wallet addresses instead of hardcoded ones
+	accountAddrs := []string{
+		suite.user1Wallet.Address.Hex(),
+		suite.user2Wallet.Address.Hex(),
+	}
 	amounts := []uint64{10, 5}
 
 	suite.bc1 = blockchain.NewBlockchain(suite.storage1, accountAddrs, amounts)
 	suite.bc2 = blockchain.NewBlockchain(suite.storage2, accountAddrs, amounts)
 
-	// Create two validators
-	suite.v1 = NewValidator(common.HexToAddress(user1), suite.tp1, suite.bc1)
-	suite.v2 = NewValidator(common.HexToAddress(user2), suite.tp2, suite.bc2)
+	// Create two validators using wallet addresses
+	suite.v1 = NewValidator(suite.user1Wallet.Address, suite.tp1, suite.bc1)
+	suite.v2 = NewValidator(suite.user2Wallet.Address, suite.tp2, suite.bc2)
 }
 
 func (suite *ValidatorTestSuite) TearDownTest() {
@@ -65,25 +115,44 @@ func (suite *ValidatorTestSuite) TearDownTest() {
 	os.RemoveAll("./testdata")
 }
 
+// Helper function to create and sign a transaction
+func (suite *ValidatorTestSuite) createSignedTransaction(wallet *crypto.Wallet, to common.Address, amount uint64, nonce uint64, blockNumber uint32) transactions.Transaction {
+	tx := transactions.Transaction{
+		From:        wallet.Address,
+		To:          to,
+		Amount:      amount,
+		Nonce:       nonce,
+		BlockNumber: blockNumber,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Sign the transaction
+	txHash := common.HexToHash(tx.TransactionHash)
+	signature, err := wallet.SignTransaction(txHash)
+	suite.NoError(err)
+	tx.Signature = signature
+
+	return tx
+}
+
 func TestValidatorTestSuite(t *testing.T) {
 	suite.Run(t, new(ValidatorTestSuite))
 }
 
 func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
-	sender, err := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
+	sender, err := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
 	suite.NoError(err)
 	senderNonce := sender.Nonce
 
-	// Create a transaction
-	tx := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      2,
-		Nonce:       senderNonce,
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
-		Timestamp:   uint64(time.Now().Unix()),
-	}
-	tx.TransactionHash = tx.GenerateHash()
+	// Create and sign a transaction using user1's wallet
+	tx := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		2,
+		senderNonce,
+		uint32(suite.bc1.LastBlockNumber)+1,
+	)
 
 	// Add transaction to pool
 	suite.v1.AddTransaction(tx)
@@ -107,29 +176,26 @@ func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
 	suite.True(success2)
 
 	// Verify balances after transaction
-	senderAcc1, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
-	receiverAcc1, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user2))
+	senderAcc1, _ := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
+	receiverAcc1, _ := suite.bc1.StateTrie.GetAccount(suite.user2Wallet.Address)
 
 	suite.Equal(uint64(8), senderAcc1.Balance)   // 10 - 2
 	suite.Equal(uint64(7), receiverAcc1.Balance) // 5 + 2
 }
 
 func (suite *ValidatorTestSuite) TestAddTransactionValidationFailure() {
-
-	sender, err := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
+	sender, err := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
 	suite.NoError(err)
 	senderNonce := sender.Nonce
 
 	// Create an invalid transaction (amount exceeds balance)
-	tx := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      20, // Amount greater than balance
-		Nonce:       senderNonce + 4,
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
-		Timestamp:   uint64(time.Now().Unix()),
-	}
-	tx.TransactionHash = tx.GenerateHash()
+	tx := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		20, // Amount greater than balance
+		senderNonce+4,
+		uint32(suite.bc1.LastBlockNumber)+1,
+	)
 
 	// Attempt to add invalid transaction
 	err = suite.v1.AddTransaction(tx)
@@ -292,33 +358,28 @@ func (suite *ValidatorTestSuite) TestValidateBlockWithSameHash() {
 }
 
 func (suite *ValidatorTestSuite) TestMultipleTransactionsInBlock() {
-
-	user1Account, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
+	user1Account, _ := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
 	user1Nonce := user1Account.Nonce
 
-	user2Account, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
+	user2Account, _ := suite.bc1.StateTrie.GetAccount(suite.user2Wallet.Address)
 	user2Nonce := user2Account.Nonce
 
-	// Create multiple transactions
-	tx1 := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      2,
-		Nonce:       user1Nonce,
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
-		Timestamp:   uint64(time.Now().Unix()),
-	}
-	tx1.TransactionHash = tx1.GenerateHash()
+	// Create and sign multiple transactions
+	tx1 := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		2,
+		user1Nonce,
+		uint32(suite.bc1.LastBlockNumber)+1,
+	)
 
-	tx2 := transactions.Transaction{
-		From:        common.HexToAddress(user2),
-		To:          common.HexToAddress(user1),
-		Amount:      1,
-		Nonce:       user2Nonce,
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
-		Timestamp:   uint64(time.Now().Unix()),
-	}
-	tx2.TransactionHash = tx2.GenerateHash()
+	tx2 := suite.createSignedTransaction(
+		suite.user2Wallet,
+		suite.user1Wallet.Address,
+		1,
+		user2Nonce,
+		uint32(suite.bc1.LastBlockNumber)+1,
+	)
 
 	// Add transactions to pool
 	suite.v1.AddTransaction(tx1)
@@ -335,23 +396,21 @@ func (suite *ValidatorTestSuite) TestMultipleTransactionsInBlock() {
 	suite.True(success)
 
 	// Verify final balances
-	senderAcc1, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user1))
-	senderAcc2, _ := suite.bc1.StateTrie.GetAccount(common.HexToAddress(user2))
+	senderAcc1, _ := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
+	senderAcc2, _ := suite.bc1.StateTrie.GetAccount(suite.user2Wallet.Address)
 	suite.Equal(uint64(9), senderAcc1.Balance) // 10 - 2 + 1
 	suite.Equal(uint64(6), senderAcc2.Balance) // 5 + 2 - 1
 }
 
 func (suite *ValidatorTestSuite) TestValidatorErrorLogging() {
 	// Create a transaction with invalid amount (greater than balance)
-	tx := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
-		Amount:      20, // Amount greater than balance
-		Nonce:       1,
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
-		Timestamp:   uint64(time.Now().Unix()),
-	}
-	tx.TransactionHash = tx.GenerateHash()
+	tx := suite.createSignedTransaction(
+		suite.user1Wallet,
+		suite.user2Wallet.Address,
+		20, // Amount greater than balance
+		1,
+		uint32(suite.bc1.LastBlockNumber)+1,
+	)
 
 	// Capture logrus output
 	var logOutput []byte
