@@ -1,8 +1,10 @@
 package transactions
 
 import (
-	"blockchain-simulator/crypto"
 	"testing"
+	"time"
+
+	"blockchain-simulator/wallet"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/suite"
@@ -10,123 +12,130 @@ import (
 
 type TransactionTestSuite struct {
 	suite.Suite
-	senderWallet   *crypto.Wallet
-	receiverWallet *crypto.Wallet
-	thirdWallet    *crypto.Wallet
+	senderWallet   *wallet.MockWallet
+	receiverWallet *wallet.MockWallet
+	thirdWallet    *wallet.MockWallet
 }
 
 func (suite *TransactionTestSuite) SetupTest() {
-	// Generate mnemonics and create wallets
-	senderMnemonic, err := crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.senderWallet, err = crypto.GetWallet(senderMnemonic)
-	suite.NoError(err)
-
-	receiverMnemonic, err := crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.receiverWallet, err = crypto.GetWallet(receiverMnemonic)
+	// Create sender wallet
+	var err error
+	suite.senderWallet, err = wallet.NewMockWallet()
 	suite.NoError(err)
 
-	thirdMnemonic, err := crypto.GenerateMnemonic()
+	// Create receiver wallet
+	suite.receiverWallet, err = wallet.NewMockWallet()
 	suite.NoError(err)
-	suite.thirdWallet, err = crypto.GetWallet(thirdMnemonic)
+
+	// Create third wallet for testing
+	suite.thirdWallet, err = wallet.NewMockWallet()
 	suite.NoError(err)
-}
-
-// signTransaction is a helper method to sign a transaction using the provided wallet
-func (suite *TransactionTestSuite) signTransaction(tx *Transaction, wallet *crypto.Wallet) error {
-	// Generate transaction hash
-	tx.TransactionHash = tx.GenerateHash()
-
-	// Convert hash to bytes
-	txHash := common.HexToHash(tx.TransactionHash)
-
-	// Sign the hash
-	signature, err := wallet.SignTransaction(txHash)
-	if err != nil {
-		return err
-	}
-
-	tx.Signature = signature
-	return nil
 }
 
 func TestTransactionTestSuite(t *testing.T) {
 	suite.Run(t, new(TransactionTestSuite))
 }
+
 func (suite *TransactionTestSuite) TestTransactionSigning() {
 	// Create a test transaction
 	tx := Transaction{
-		From:        suite.senderWallet.Address,
-		To:          suite.receiverWallet.Address,
+		From:        suite.senderWallet.GetAddress(),
+		To:          suite.receiverWallet.GetAddress(),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
-		Timestamp:   1234567890,
+		Timestamp:   uint64(time.Now().Unix()),
 	}
 
-	// Test signing
-	err := suite.signTransaction(&tx, suite.senderWallet)
+	// Generate transaction hash
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Sign the transaction
+	signature, err := suite.senderWallet.SignTransaction(common.HexToHash(tx.TransactionHash))
 	suite.NoError(err)
-	suite.NotNil(tx.Signature)
+	tx.Signature = signature
 
-	// Test verification
-	isValid := tx.Verify()
+	// Verify the signature
+	isValid, err := tx.Verify()
+	suite.NoError(err)
 	suite.True(isValid)
+	suite.Equal(suite.senderWallet.GetAddress(), tx.From)
 
-	// Test verification with wrong address
-	tx.From = suite.thirdWallet.Address
-	isValid = tx.Verify()
+	// Test invalid signature
+	tx2 := Transaction{
+		From:        suite.thirdWallet.GetAddress(),
+		To:          suite.receiverWallet.GetAddress(),
+		Amount:      100,
+		Nonce:       1,
+		BlockNumber: 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+	tx2.TransactionHash = tx2.GenerateHash()
+
+	// Sign with wrong wallet (sender wallet instead of third wallet)
+	signature, err = suite.senderWallet.SignTransaction(common.HexToHash(tx2.TransactionHash))
+	suite.NoError(err)
+	tx2.Signature = signature
+
+	// Verify should fail because wrong wallet signed
+	isValid, err = tx2.Verify()
+	suite.NoError(err)
 	suite.False(isValid)
 }
 
-func (suite *TransactionTestSuite) TestTransactionValidationWithSignature() {
-	// Create a test transaction
-	tx := Transaction{
-		From:        suite.senderWallet.Address,
-		To:          suite.receiverWallet.Address,
+func (suite *TransactionTestSuite) TestTransactionHash() {
+	// Create two identical transactions
+	tx1 := Transaction{
+		From:        suite.senderWallet.GetAddress(),
+		To:          suite.receiverWallet.GetAddress(),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
 		Timestamp:   1234567890,
 	}
 
-	// Test validation without signature
-	valid, err := tx.Validate()
-	suite.True(valid)
-	suite.NoError(err)
-
-	// Sign the transaction
-	err = suite.signTransaction(&tx, suite.senderWallet)
-	suite.NoError(err)
-
-	// Test validation with signature
-	valid, err = tx.Validate()
-	suite.True(valid)
-	suite.NoError(err)
-}
-
-func (suite *TransactionTestSuite) TestTransactionHashGeneration() {
-	// Create a test transaction
-	tx := Transaction{
-		From:        suite.senderWallet.Address,
-		To:          suite.receiverWallet.Address,
+	tx2 := Transaction{
+		From:        suite.senderWallet.GetAddress(),
+		To:          suite.receiverWallet.GetAddress(),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
 		Timestamp:   1234567890,
 	}
 
-	// Generate hash
-	hash1 := tx.GenerateHash()
-	suite.NotEmpty(hash1)
+	// Generate hashes
+	hash1 := tx1.GenerateHash()
+	hash2 := tx2.GenerateHash()
 
-	// Generate hash again - should be the same
-	hash2 := tx.GenerateHash()
+	// Hashes should be equal for identical transactions
 	suite.Equal(hash1, hash2)
 
-	// Modify transaction and generate new hash - should be different
-	tx.Amount = 200
-	hash3 := tx.GenerateHash()
-	suite.NotEqual(hash1, hash3)
+	// Modify tx2 and verify hash changes
+	tx2.Amount = 200
+	hash2 = tx2.GenerateHash()
+	suite.NotEqual(hash1, hash2)
+}
+
+func (suite *TransactionTestSuite) TestTransactionSigningError() {
+	// Create a test transaction
+	tx := Transaction{
+		From:        suite.senderWallet.GetAddress(),
+		To:          suite.receiverWallet.GetAddress(),
+		Amount:      100,
+		Nonce:       1,
+		BlockNumber: 1,
+		Timestamp:   uint64(time.Now().Unix()),
+	}
+
+	// Generate transaction hash
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Create a wallet with nil private key to test error
+	invalidWallet := &wallet.MockWallet{} // This will have nil private key
+
+	// Try to sign with invalid wallet
+	signature, err := invalidWallet.SignTransaction(common.HexToHash(tx.TransactionHash))
+	suite.Error(err)
+	suite.Nil(signature)
+	suite.Equal("private key is nil", err.Error())
 }

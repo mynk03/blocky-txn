@@ -2,22 +2,18 @@ package validator
 
 import (
 	"blockchain-simulator/blockchain"
-	"blockchain-simulator/crypto"
 	"blockchain-simulator/transactions"
-	"fmt"
+	"blockchain-simulator/wallet"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
+	ethcommon "github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 )
 
 const (
-	chaindata1Path = "./testdata/validator1/chaindata"
-	chaindata2Path = "./testdata/validator2/chaindata"
-
 	user1     = "0x100000100000000000000000000000000000001a"
 	user2     = "0x100000100000000000000000000000000000000d"
 	ext_user1 = "0x1100001000000000000000000000000000000001"
@@ -28,84 +24,88 @@ const (
 
 type ValidatorTestSuite struct {
 	suite.Suite
-	bc1            *blockchain.Blockchain
-	bc2            *blockchain.Blockchain
-	storage1       blockchain.Storage
-	storage2       blockchain.Storage
+	storage1       *blockchain.LevelDBStorage
+	storage2       *blockchain.LevelDBStorage
+	storage3       *blockchain.LevelDBStorage
+	blockchain1    *blockchain.Blockchain
+	blockchain2    *blockchain.Blockchain
 	tp1            *transactions.TransactionPool
 	tp2            *transactions.TransactionPool
-	v1             *Validator
-	v2             *Validator
-	user1Wallet    *crypto.Wallet
-	user2Wallet    *crypto.Wallet
-	user3Wallet    *crypto.Wallet
-	extUser1Wallet *crypto.Wallet
-	extUser2Wallet *crypto.Wallet
-	realUserWallet *crypto.Wallet
+	tp3            *transactions.TransactionPool
+	validator1     *Validator
+	validator2     *Validator
+	user1Wallet    *wallet.MockWallet
+	user2Wallet    *wallet.MockWallet
+	user3Wallet    *wallet.MockWallet
+	extUser1Wallet *wallet.MockWallet
+	extUser2Wallet *wallet.MockWallet
+	realUserWallet *wallet.MockWallet
 }
 
 func (suite *ValidatorTestSuite) SetupTest() {
-	// Create wallets for all users
+	// Create temporary directories for test databases
+	chaindata1Path := "testdata/chaindata1"
+	chaindata2Path := "testdata/chaindata2"
+	chaindata3Path := "testdata/chaindata3"
+	os.MkdirAll(chaindata1Path, 0755)
+	os.MkdirAll(chaindata2Path, 0755)
+	os.MkdirAll(chaindata3Path, 0755)
+
+	// Initialize storages
 	var err error
-
-	// Create user1 wallet
-	mnemonic, err := crypto.GenerateMnemonic()
+	suite.storage1, err = blockchain.NewLevelDBStorage(chaindata1Path)
 	suite.NoError(err)
-	suite.user1Wallet, err = crypto.GetWallet(mnemonic)
+	suite.storage2, err = blockchain.NewLevelDBStorage(chaindata2Path)
 	suite.NoError(err)
-
-	// Create user2 wallet
-	mnemonic, err = crypto.GenerateMnemonic()
+	suite.storage3, err = blockchain.NewLevelDBStorage(chaindata3Path)
 	suite.NoError(err)
-	suite.user2Wallet, err = crypto.GetWallet(mnemonic)
-	suite.NoError(err)
-
-	// Create user3 wallet
-	mnemonic, err = crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.user3Wallet, err = crypto.GetWallet(mnemonic)
-	suite.NoError(err)
-
-	// Create external user1 wallet
-	mnemonic, err = crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.extUser1Wallet, err = crypto.GetWallet(mnemonic)
-	suite.NoError(err)
-
-	// Create external user2 wallet
-	mnemonic, err = crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.extUser2Wallet, err = crypto.GetWallet(mnemonic)
-	suite.NoError(err)
-
-	// Create real user wallet
-	mnemonic, err = crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.realUserWallet, err = crypto.GetWallet(mnemonic)
-	suite.NoError(err)
-
-	// Initialize storage for blockchain and both validators
-	suite.storage1, _ = blockchain.NewLevelDBStorage(chaindata1Path)
-	suite.storage2, _ = blockchain.NewLevelDBStorage(chaindata2Path)
 
 	// Initialize transaction pools
 	suite.tp1 = transactions.NewTransactionPool()
 	suite.tp2 = transactions.NewTransactionPool()
+	suite.tp3 = transactions.NewTransactionPool()
+
+	// Create wallets for testing
+	var err2 error
+
+	// Create user1 wallet
+	suite.user1Wallet, err2 = wallet.NewMockWallet()
+	suite.NoError(err2)
+
+	// Create user2 wallet
+	suite.user2Wallet, err2 = wallet.NewMockWallet()
+	suite.NoError(err2)
+
+	// Create user3 wallet
+	suite.user3Wallet, err2 = wallet.NewMockWallet()
+	suite.NoError(err2)
+
+	// Create external user1 wallet
+	suite.extUser1Wallet, err2 = wallet.NewMockWallet()
+	suite.NoError(err2)
+
+	// Create external user2 wallet
+	suite.extUser2Wallet, err2 = wallet.NewMockWallet()
+	suite.NoError(err2)
+
+	// Create real user wallet
+	suite.realUserWallet, err2 = wallet.NewMockWallet()
+	suite.NoError(err2)
 
 	// Create two blockchains with different accounts
 	// Use actual wallet addresses instead of hardcoded ones
 	accountAddrs := []string{
-		suite.user1Wallet.Address.Hex(),
-		suite.user2Wallet.Address.Hex(),
+		suite.user1Wallet.GetAddress().Hex(),
+		suite.user2Wallet.GetAddress().Hex(),
 	}
 	amounts := []uint64{10, 5}
 
-	suite.bc1 = blockchain.NewBlockchain(suite.storage1, accountAddrs, amounts)
-	suite.bc2 = blockchain.NewBlockchain(suite.storage2, accountAddrs, amounts)
+	suite.blockchain1 = blockchain.NewBlockchain(suite.storage1, accountAddrs, amounts)
+	suite.blockchain2 = blockchain.NewBlockchain(suite.storage2, accountAddrs, amounts)
 
 	// Create two validators using wallet addresses
-	suite.v1 = NewValidator(suite.user1Wallet.Address, suite.tp1, suite.bc1)
-	suite.v2 = NewValidator(suite.user2Wallet.Address, suite.tp2, suite.bc2)
+	suite.validator1 = NewValidator(suite.user1Wallet.GetAddress(), suite.tp1, suite.blockchain1)
+	suite.validator2 = NewValidator(suite.user2Wallet.GetAddress(), suite.tp2, suite.blockchain2)
 }
 
 func (suite *ValidatorTestSuite) TearDownTest() {
@@ -116,9 +116,9 @@ func (suite *ValidatorTestSuite) TearDownTest() {
 }
 
 // Helper function to create and sign a transaction
-func (suite *ValidatorTestSuite) createSignedTransaction(wallet *crypto.Wallet, to common.Address, amount uint64, nonce uint64, blockNumber uint32) transactions.Transaction {
+func (suite *ValidatorTestSuite) createSignedTransaction(wallet *wallet.MockWallet, to ethcommon.Address, amount uint64, nonce uint64, blockNumber uint32) transactions.Transaction {
 	tx := transactions.Transaction{
-		From:        wallet.Address,
+		From:        wallet.GetAddress(),
 		To:          to,
 		Amount:      amount,
 		Nonce:       nonce,
@@ -128,7 +128,7 @@ func (suite *ValidatorTestSuite) createSignedTransaction(wallet *crypto.Wallet, 
 	tx.TransactionHash = tx.GenerateHash()
 
 	// Sign the transaction
-	txHash := common.HexToHash(tx.TransactionHash)
+	txHash := ethcommon.HexToHash(tx.TransactionHash)
 	signature, err := wallet.SignTransaction(txHash)
 	suite.NoError(err)
 	tx.Signature = signature
@@ -141,34 +141,32 @@ func TestValidatorTestSuite(t *testing.T) {
 }
 
 func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
-	sender, err := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
+	sender, err := suite.blockchain1.StateTrie.GetAccount(suite.user1Wallet.GetAddress())
 	suite.NoError(err)
 	senderNonce := sender.Nonce
 
 	// Create and sign a transaction using user1's wallet
 	tx := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		2,
 		senderNonce,
-		uint32(suite.bc1.LastBlockNumber)+1,
+		uint32(suite.blockchain1.LastBlockNumber)+1,
 	)
 
 	// Add transaction to pool
-	suite.v1.AddTransaction(tx)
+	suite.validator1.AddTransaction(tx)
 
 	// Validator1 proposes a block
-	proposedBlock := suite.v1.ProposeNewBlock()
-
-	fmt.Println("Here Root Hash of validator1 chain", suite.bc1.StateTrie.RootHash())
+	proposedBlock := suite.validator1.ProposeNewBlock()
 
 	// Validator2 validates the block
-	isValid := suite.v2.ValidateBlock(proposedBlock)
+	isValid := suite.validator2.ValidateBlock(proposedBlock)
 	suite.True(isValid)
 
 	// Add block to both blockchains
-	success1, err1 := suite.bc1.AddBlock(proposedBlock)
-	success2, err2 := suite.bc2.AddBlock(proposedBlock)
+	success1, err1 := suite.blockchain1.AddBlock(proposedBlock)
+	success2, err2 := suite.blockchain2.AddBlock(proposedBlock)
 
 	suite.NoError(err1)
 	suite.NoError(err2)
@@ -176,29 +174,29 @@ func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
 	suite.True(success2)
 
 	// Verify balances after transaction
-	senderAcc1, _ := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
-	receiverAcc1, _ := suite.bc1.StateTrie.GetAccount(suite.user2Wallet.Address)
+	senderAcc1, _ := suite.blockchain1.StateTrie.GetAccount(suite.user1Wallet.GetAddress())
+	receiverAcc1, _ := suite.blockchain1.StateTrie.GetAccount(suite.user2Wallet.GetAddress())
 
 	suite.Equal(uint64(8), senderAcc1.Balance)   // 10 - 2
 	suite.Equal(uint64(7), receiverAcc1.Balance) // 5 + 2
 }
 
 func (suite *ValidatorTestSuite) TestAddTransactionValidationFailure() {
-	sender, err := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
+	sender, err := suite.blockchain1.StateTrie.GetAccount(suite.user1Wallet.GetAddress())
 	suite.NoError(err)
 	senderNonce := sender.Nonce
 
 	// Create an invalid transaction (amount exceeds balance)
 	tx := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		20, // Amount greater than balance
 		senderNonce+4,
-		uint32(suite.bc1.LastBlockNumber)+1,
+		uint32(suite.blockchain1.LastBlockNumber)+1,
 	)
 
 	// Attempt to add invalid transaction
-	err = suite.v1.AddTransaction(tx)
+	err = suite.validator1.AddTransaction(tx)
 	suite.Error(err)
 }
 
@@ -212,46 +210,46 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidPrevHash() {
 	block.Hash = blockchain.CalculateBlockHash(block)
 
 	// Attempt to validate block
-	isValid := suite.v1.ValidateBlock(block)
+	isValid := suite.validator1.ValidateBlock(block)
 	suite.False(isValid)
 }
 
 func (suite *ValidatorTestSuite) TestValidateBlockInvalidIndex() {
 	// Create a block with invalid index
 	block := blockchain.Block{
-		Index:     suite.bc1.LastBlockNumber, // Same as last block number
+		Index:     suite.blockchain1.LastBlockNumber, // Same as last block number
 		PrevHash:  "",
 		Timestamp: time.Now().UTC().String(),
 	}
 	block.Hash = blockchain.CalculateBlockHash(block)
 
 	// Attempt to validate block
-	isValid := suite.v1.ValidateBlock(block)
+	isValid := suite.validator1.ValidateBlock(block)
 	suite.False(isValid)
 }
 
 func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 	// Create a transaction
 	tx := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
+		From:        ethcommon.HexToAddress(user1),
+		To:          ethcommon.HexToAddress(user2),
 		Amount:      2,
 		Nonce:       1,
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		BlockNumber: uint32(suite.blockchain1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
 	tx.TransactionHash = tx.GenerateHash()
 
 	// Create a block with the transaction
 	block := blockchain.Block{
-		Index:        suite.bc1.LastBlockNumber + 1,
-		PrevHash:     suite.bc1.GetLatestBlock().Hash,
+		Index:        suite.blockchain1.LastBlockNumber + 1,
+		PrevHash:     suite.blockchain1.GetLatestBlock().Hash,
 		Transactions: []transactions.Transaction{tx},
 		Timestamp:    time.Now().UTC().String(),
 	}
 
 	// Process block on a temporary state trie
-	tempStateTrie := suite.bc1.StateTrie.Copy()
+	tempStateTrie := suite.blockchain1.StateTrie.Copy()
 	blockchain.ProcessBlock(block, tempStateTrie)
 	block.StateRoot = tempStateTrie.RootHash()
 
@@ -259,7 +257,7 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 	block.StateRoot = "invalid_hash"
 
 	// Attempt to validate block
-	isValid := suite.v1.ValidateBlock(block)
+	isValid := suite.validator1.ValidateBlock(block)
 	suite.False(isValid)
 }
 
@@ -268,40 +266,40 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidSender() {
 	// Create a transaction with invalid sender address
 	tx := transactions.Transaction{
-		From:        common.Address{}, // Empty address
-		To:          common.HexToAddress(user2),
+		From:        ethcommon.Address{}, // Empty address
+		To:          ethcommon.HexToAddress(user2),
 		Amount:      2,
 		Nonce:       1,
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		BlockNumber: uint32(suite.blockchain1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
 	tx.TransactionHash = tx.GenerateHash()
 
-	err := suite.v1.AddTransaction(tx)
+	err := suite.validator1.AddTransaction(tx)
 	suite.Error(err)
 }
 
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidRecipient() {
 	// Create a transaction with invalid recipient address
 	tx := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.Address{}, // Empty address
+		From:        ethcommon.HexToAddress(user1),
+		To:          ethcommon.Address{}, // Empty address
 		Amount:      2,
 		Nonce:       1,
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		BlockNumber: uint32(suite.blockchain1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
 	tx.TransactionHash = tx.GenerateHash()
 
-	err := suite.v1.AddTransaction(tx)
+	err := suite.validator1.AddTransaction(tx)
 	suite.Error(err)
 }
 
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidBlockNumber() {
 	// Create a transaction with invalid block number
 	tx := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
+		From:        ethcommon.HexToAddress(user1),
+		To:          ethcommon.HexToAddress(user2),
 		Amount:      2,
 		Nonce:       1,
 		BlockNumber: 0, // Invalid block number
@@ -309,13 +307,13 @@ func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidBlockNumber() {
 	}
 	tx.TransactionHash = tx.GenerateHash()
 
-	err := suite.v1.AddTransaction(tx)
+	err := suite.validator1.AddTransaction(tx)
 	suite.Error(err)
 }
 
 func (suite *ValidatorTestSuite) TestProposeNewBlockWithEmptyPool() {
 	// Propose a block with empty transaction pool
-	block := suite.v1.ProposeNewBlock()
+	block := suite.validator1.ProposeNewBlock()
 	suite.NotNil(block)
 	suite.Equal(0, len(block.Transactions))
 }
@@ -323,81 +321,81 @@ func (suite *ValidatorTestSuite) TestProposeNewBlockWithEmptyPool() {
 func (suite *ValidatorTestSuite) TestValidateBlockWithInvalidTransactions() {
 	// Create a block with invalid transaction
 	tx := transactions.Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
+		From:        ethcommon.HexToAddress(user1),
+		To:          ethcommon.HexToAddress(user2),
 		Amount:      20, // Amount greater than balance
 		Nonce:       1,
-		BlockNumber: uint32(suite.bc1.LastBlockNumber) + 1,
+		BlockNumber: uint32(suite.blockchain1.LastBlockNumber) + 1,
 		Timestamp:   uint64(time.Now().Unix()),
 	}
 	tx.TransactionHash = tx.GenerateHash()
 
 	block := blockchain.Block{
-		Index:        suite.bc1.LastBlockNumber + 1,
-		PrevHash:     suite.bc1.GetLatestBlock().Hash,
+		Index:        suite.blockchain1.LastBlockNumber + 1,
+		PrevHash:     suite.blockchain1.GetLatestBlock().Hash,
 		Transactions: []transactions.Transaction{tx},
 		Timestamp:    time.Now().UTC().String(),
 	}
 
-	isValid := suite.v1.ValidateBlock(block)
+	isValid := suite.validator1.ValidateBlock(block)
 	suite.False(isValid)
 }
 
 func (suite *ValidatorTestSuite) TestValidateBlockWithSameHash() {
 	// Create a block with same hash as previous hash
-	prevBlock := suite.bc1.GetLatestBlock()
+	prevBlock := suite.blockchain1.GetLatestBlock()
 	block := blockchain.Block{
-		Index:     suite.bc1.LastBlockNumber + 1,
+		Index:     suite.blockchain1.LastBlockNumber + 1,
 		PrevHash:  prevBlock.Hash, // Same as previous hash
 		Timestamp: time.Now().UTC().String(),
 	}
 	block.Hash = prevBlock.Hash // Same hash as previous block
 
-	isValid := suite.v1.ValidateBlock(block)
+	isValid := suite.validator1.ValidateBlock(block)
 	suite.False(isValid)
 }
 
 func (suite *ValidatorTestSuite) TestMultipleTransactionsInBlock() {
-	user1Account, _ := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
+	user1Account, _ := suite.blockchain1.StateTrie.GetAccount(suite.user1Wallet.GetAddress())
 	user1Nonce := user1Account.Nonce
 
-	user2Account, _ := suite.bc1.StateTrie.GetAccount(suite.user2Wallet.Address)
+	user2Account, _ := suite.blockchain1.StateTrie.GetAccount(suite.user2Wallet.GetAddress())
 	user2Nonce := user2Account.Nonce
 
 	// Create and sign multiple transactions
 	tx1 := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		2,
 		user1Nonce,
-		uint32(suite.bc1.LastBlockNumber)+1,
+		uint32(suite.blockchain1.LastBlockNumber)+1,
 	)
 
 	tx2 := suite.createSignedTransaction(
 		suite.user2Wallet,
-		suite.user1Wallet.Address,
+		suite.user1Wallet.GetAddress(),
 		1,
 		user2Nonce,
-		uint32(suite.bc1.LastBlockNumber)+1,
+		uint32(suite.blockchain1.LastBlockNumber)+1,
 	)
 
 	// Add transactions to pool
-	suite.v1.AddTransaction(tx1)
-	suite.v1.AddTransaction(tx2)
+	suite.validator1.AddTransaction(tx1)
+	suite.validator1.AddTransaction(tx2)
 
 	// Propose and validate block
-	block := suite.v1.ProposeNewBlock()
-	isValid := suite.v2.ValidateBlock(block)
+	block := suite.validator1.ProposeNewBlock()
+	isValid := suite.validator2.ValidateBlock(block)
 	suite.True(isValid)
 
 	// Add block to blockchain
-	success, err := suite.bc1.AddBlock(block)
+	success, err := suite.blockchain1.AddBlock(block)
 	suite.NoError(err)
 	suite.True(success)
 
 	// Verify final balances
-	senderAcc1, _ := suite.bc1.StateTrie.GetAccount(suite.user1Wallet.Address)
-	senderAcc2, _ := suite.bc1.StateTrie.GetAccount(suite.user2Wallet.Address)
+	senderAcc1, _ := suite.blockchain1.StateTrie.GetAccount(suite.user1Wallet.GetAddress())
+	senderAcc2, _ := suite.blockchain1.StateTrie.GetAccount(suite.user2Wallet.GetAddress())
 	suite.Equal(uint64(9), senderAcc1.Balance) // 10 - 2 + 1
 	suite.Equal(uint64(6), senderAcc2.Balance) // 5 + 2 - 1
 }
@@ -406,10 +404,10 @@ func (suite *ValidatorTestSuite) TestValidatorErrorLogging() {
 	// Create a transaction with invalid amount (greater than balance)
 	tx := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		20, // Amount greater than balance
 		1,
-		uint32(suite.bc1.LastBlockNumber)+1,
+		uint32(suite.blockchain1.LastBlockNumber)+1,
 	)
 
 	// Capture logrus output
@@ -417,12 +415,11 @@ func (suite *ValidatorTestSuite) TestValidatorErrorLogging() {
 	logrus.SetOutput(&logCapture{output: &logOutput})
 
 	// Attempt to add invalid transaction
-	err := suite.v1.AddTransaction(tx)
+	err := suite.validator1.AddTransaction(tx)
 	suite.Error(err)
 
 	// Verify error logs
 	logString := string(logOutput)
-	fmt.Println("Here logString", logString)
 	suite.Contains(logString, "Transaction validation failed")
 	suite.Contains(logString, "insufficient funds")
 }

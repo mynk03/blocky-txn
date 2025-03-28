@@ -1,13 +1,13 @@
 package transactions
 
 import (
-	"blockchain-simulator/crypto"
 	"bytes"
 	"math/rand"
 	"testing"
 	"time"
 
 	"blockchain-simulator/state"
+	"blockchain-simulator/wallet"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
@@ -25,10 +25,10 @@ var blockNumber uint32 = 1
 type TransactionPoolTestSuite struct {
 	suite.Suite
 	tp          *TransactionPool
-	user1Wallet *crypto.Wallet
-	user2Wallet *crypto.Wallet
-	user3Wallet *crypto.Wallet
-	otherWallet *crypto.Wallet
+	user1Wallet *wallet.MockWallet
+	user2Wallet *wallet.MockWallet
+	user3Wallet *wallet.MockWallet
+	otherWallet *wallet.MockWallet
 }
 
 func (suite *TransactionPoolTestSuite) SetupTest() {
@@ -38,34 +38,26 @@ func (suite *TransactionPoolTestSuite) SetupTest() {
 	var err error
 
 	// Create user1 wallet
-	mnemonic, err := crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.user1Wallet, err = crypto.GetWallet(mnemonic)
+	suite.user1Wallet, err = wallet.NewMockWallet()
 	suite.NoError(err)
 
 	// Create user2 wallet
-	mnemonic, err = crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.user2Wallet, err = crypto.GetWallet(mnemonic)
+	suite.user2Wallet, err = wallet.NewMockWallet()
 	suite.NoError(err)
 
 	// Create user3 wallet
-	mnemonic, err = crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.user3Wallet, err = crypto.GetWallet(mnemonic)
+	suite.user3Wallet, err = wallet.NewMockWallet()
 	suite.NoError(err)
 
 	// Create other wallet for invalid cases
-	mnemonic, err = crypto.GenerateMnemonic()
-	suite.NoError(err)
-	suite.otherWallet, err = crypto.GetWallet(mnemonic)
+	suite.otherWallet, err = wallet.NewMockWallet()
 	suite.NoError(err)
 }
 
 // Helper function to create and sign a transaction
-func (suite *TransactionPoolTestSuite) createSignedTransaction(wallet *crypto.Wallet, to common.Address, amount uint64, nonce uint64, blockNumber uint32) Transaction {
+func (suite *TransactionPoolTestSuite) createSignedTransaction(wallet *wallet.MockWallet, to common.Address, amount uint64, nonce uint64, blockNumber uint32) Transaction {
 	tx := Transaction{
-		From:        wallet.Address,
+		From:        wallet.GetAddress(),
 		To:          to,
 		Amount:      amount,
 		Nonce:       nonce,
@@ -355,13 +347,13 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 		Balance: 1000,
 		Nonce:   1,
 	}
-	err := stateTrie.PutAccount(suite.user1Wallet.Address, &account)
+	err := stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account)
 	suite.NoError(err)
 
 	// Create a valid transaction
 	tx := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		100,
 		1,
 		1,
@@ -375,7 +367,7 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 	// Test transaction with insufficient funds
 	txInsufficient := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		2000,
 		1,
 		1,
@@ -387,7 +379,7 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 	// Test transaction with invalid nonce
 	txInvalidNonce := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		100,
 		2,
 		1,
@@ -398,8 +390,8 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 
 	// Test transaction with non-existent sender
 	txInvalidSender := suite.createSignedTransaction(
-		suite.otherWallet, // Using a wallet not in the state
-		suite.user2Wallet.Address,
+		suite.otherWallet,
+		suite.user2Wallet.GetAddress(),
 		100,
 		1,
 		1,
@@ -422,15 +414,15 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {
 		Balance: 500,
 		Nonce:   1,
 	}
-	err := stateTrie.PutAccount(suite.user1Wallet.Address, &account1)
+	err := stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account1)
 	suite.NoError(err)
-	err = stateTrie.PutAccount(suite.user2Wallet.Address, &account2)
+	err = stateTrie.PutAccount(suite.user2Wallet.GetAddress(), &account2)
 	suite.NoError(err)
 
 	// Test multiple transactions in sequence
 	tx1 := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		100,
 		1,
 		1,
@@ -438,7 +430,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {
 
 	tx2 := suite.createSignedTransaction(
 		suite.user2Wallet,
-		suite.user1Wallet.Address,
+		suite.user1Wallet.GetAddress(),
 		50,
 		1,
 		1,
@@ -453,9 +445,9 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {
 	account1.Balance -= tx1.Amount
 	account2.Balance += tx1.Amount
 	account1.Nonce++
-	err = stateTrie.PutAccount(suite.user1Wallet.Address, &account1)
+	err = stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account1)
 	suite.NoError(err)
-	err = stateTrie.PutAccount(suite.user2Wallet.Address, &account2)
+	err = stateTrie.PutAccount(suite.user2Wallet.GetAddress(), &account2)
 	suite.NoError(err)
 
 	// Validate second transaction
@@ -473,13 +465,13 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationEdgeCases() {
 		Balance: ^uint64(0), // Maximum uint64 value
 		Nonce:   1,
 	}
-	err := stateTrie.PutAccount(suite.user1Wallet.Address, &account)
+	err := stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account)
 	suite.NoError(err)
 
 	// Test transaction with maximum amount
 	txMaxAmount := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		^uint64(0), // Maximum uint64 value
 		1,
 		1,
@@ -491,7 +483,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationEdgeCases() {
 	// Test transaction with maximum block number
 	txMaxBlock := suite.createSignedTransaction(
 		suite.user1Wallet,
-		suite.user2Wallet.Address,
+		suite.user2Wallet.GetAddress(),
 		100,
 		1,
 		^uint32(0), // Maximum uint32 value
