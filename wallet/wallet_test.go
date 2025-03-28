@@ -2,6 +2,7 @@ package wallet
 
 import (
 	"crypto/ecdsa"
+	"errors"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -11,11 +12,15 @@ import (
 
 type WalletTestSuite struct {
 	suite.Suite
-	wallet  *MockWallet
-	wallet2 *MockWallet
+	wallet          *MockWallet
+	wallet2         *MockWallet
+	origGenerateKey func() (*ecdsa.PrivateKey, error)
 }
 
 func (suite *WalletTestSuite) SetupTest() {
+	// Store the original function
+	suite.origGenerateKey = generateKey
+
 	// Create test wallets
 	var err error
 	suite.wallet, err = NewMockWallet()
@@ -25,6 +30,11 @@ func (suite *WalletTestSuite) SetupTest() {
 	suite.wallet2, err = NewMockWallet()
 	suite.NoError(err)
 	suite.NotNil(suite.wallet2)
+}
+
+func (suite *WalletTestSuite) TearDownTest() {
+	// Restore the original function
+	generateKey = suite.origGenerateKey
 }
 
 func TestWalletTestSuite(t *testing.T) {
@@ -37,6 +47,21 @@ func (suite *WalletTestSuite) TestNewMockWallet() {
 
 	// Check that the private key is not nil
 	suite.NotNil(suite.wallet.privateKey)
+}
+
+func (suite *WalletTestSuite) TestNewMockWalletError() {
+	// Mock key generation to return error
+	generateKey = func() (*ecdsa.PrivateKey, error) {
+		return nil, errors.New("key generation failed")
+	}
+
+	// Attempt to create a new wallet
+	wallet, err := NewMockWallet()
+
+	// Verify error is returned
+	suite.Error(err)
+	suite.Nil(wallet)
+	suite.Equal("key generation failed", err.Error())
 }
 
 func (suite *WalletTestSuite) TestMockWalletSignTransaction() {
@@ -57,6 +82,23 @@ func (suite *WalletTestSuite) TestMockWalletSignTransaction() {
 		signatureNoRecoverID,
 	)
 	suite.True(valid)
+}
+
+func (suite *WalletTestSuite) TestMockWalletSignTransactionError() {
+	// Create a wallet with nil private key to simulate error condition
+	wallet := &MockWallet{
+		privateKey: nil,
+		address:    common.Address{},
+	}
+
+	// Attempt to sign with nil private key
+	testHash := crypto.Keccak256Hash([]byte("test message"))
+	signature, err := wallet.SignTransaction(testHash)
+
+	// Verify error is returned
+	suite.Error(err)
+	suite.Nil(signature)
+	suite.Equal("private key is nil", err.Error())
 }
 
 func (suite *WalletTestSuite) TestMockWalletUniqueness() {
