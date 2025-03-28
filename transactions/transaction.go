@@ -44,10 +44,9 @@ func (t *Transaction) GenerateHash() string {
 }
 
 // Verify verifies the transaction signature
-func (t *Transaction) Verify() bool {
+func (t *Transaction) Verify() (bool, error) {
 	if t.Signature == nil {
-		fmt.Println("No signature found")
-		return false
+		return false, ErrEmptySignature
 	}
 
 	// Generate transaction hash
@@ -63,8 +62,7 @@ func (t *Transaction) Verify() bool {
 
 	// Compare the recovered address with the sender's address
 	matches := recoveredAddr == t.From
-	fmt.Println("Signature verified:", matches)
-	return matches
+	return matches, nil
 }
 
 // ValidateWithState validates the transaction with state
@@ -89,7 +87,11 @@ func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) 
 	}
 
 	// Finally verify signature
-	if !t.Verify() {
+	matches, err := t.Verify()
+	if err != nil {
+		return false, err
+	}
+	if !matches {
 		return false, ErrInvalidSignature
 	}
 
@@ -122,4 +124,5 @@ var (
 	ErrInsufficientFunds  = errors.New("insufficient funds")
 	ErrInvalidSignature   = errors.New("invalid signature")
 	ErrSignatureMismatch  = errors.New("signature doesn't match sender")
+	ErrEmptySignature     = errors.New("signature is empty")
 )

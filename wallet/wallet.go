@@ -4,7 +4,7 @@ package wallet
 
 import (
 	"crypto/ecdsa"
-	"fmt"
+	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -23,7 +23,7 @@ type MockWallet struct {
 func NewMockWallet() (*MockWallet, error) {
 	// Generate a new private key
 	privateKey, err := generateKey()
-	if err != nil ||  privateKey == nil {
+	if err != nil || privateKey == nil {
 		return nil, err
 	}
 
@@ -47,7 +47,7 @@ func (w *MockWallet) GetAddress() common.Address {
 // SignTransaction signs a transaction hash with the wallet's private key
 func (w *MockWallet) SignTransaction(hash common.Hash) ([]byte, error) {
 	if w.privateKey == nil {
-		return nil, fmt.Errorf("private key is nil")
+		return nil, errors.New("private key is nil")
 	}
 	return crypto.Sign(hash.Bytes(), w.privateKey)
 }
