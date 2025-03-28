@@ -83,7 +83,7 @@ func TestDepositEdgeCases(t *testing.T) {
 	// Verify validator wasn't added
 	validatorSet := pos.GetValidatorSet()
 	assert.Equal(t, 0, len(validatorSet), "Validator set should be empty")
-	assert.Equal(t, 0, pos.GetValidatorStake(validator), "Validator should have 0 stake")
+	assert.Equal(t, uint64(0), pos.GetValidatorStake(validator), "Validator should have 0 stake")
 
 	// Now deposit enough to meet minimum stake
 	pos.Deposit(validator, pos.minStake)
@@ -91,7 +91,7 @@ func TestDepositEdgeCases(t *testing.T) {
 	assert.Equal(t, 1, len(pos.GetValidatorSet()), "Validator set should have 1 validator")
 
 	// Additional deposits should increase stake
-	additionalStake := 50
+	additionalStake := uint64(50)
 	pos.Deposit(validator, additionalStake)
 	assert.Equal(t, pos.minStake+additionalStake, pos.GetValidatorStake(validator), "Stake should increase")
 }
@@ -125,7 +125,7 @@ func TestWithdrawSlashedValidator(t *testing.T) {
 
 	// Setup a validator with stake
 	validator := TestValidators.Validator1
-	initialStake := 500
+	initialStake := uint64(500)
 	pos.Deposit(validator, initialStake)
 
 	// Slash the validator
@@ -135,11 +135,11 @@ func TestWithdrawSlashedValidator(t *testing.T) {
 	assert.Equal(t, StatusSlashed, pos.GetValidatorStatus(validator), "Validator should be slashed")
 
 	// Withdraw part of the stake
-	withdrawAmount := 200
+	withdrawAmount := uint64(200)
 	pos.Withdraw(validator, withdrawAmount)
 
 	// Calculate expected slashing penalty
-	slashingPenalty := (withdrawAmount * pos.slashingRate) / 100
+	slashingPenalty := (withdrawAmount * uint64(pos.slashingRate)) / 100
 
 	// Verify remaining stake after slashing and withdrawal
 	expectedRemainingStake := initialStake - withdrawAmount - slashingPenalty
@@ -149,7 +149,7 @@ func TestWithdrawSlashedValidator(t *testing.T) {
 	pos.Withdraw(validator, expectedRemainingStake)
 
 	// Verify validator is removed from set
-	assert.Equal(t, 0, pos.GetValidatorStake(validator), "Validator should have 0 stake")
+	assert.Equal(t, uint64(0), pos.GetValidatorStake(validator), "Validator should have 0 stake")
 	assert.Equal(t, 0, len(pos.GetValidatorSet()), "Validator set should be empty")
 }
 
@@ -170,7 +170,7 @@ func TestRecordInvalidTransactionEdgeCases(t *testing.T) {
 	assert.Equal(t, StatusActive, pos.GetValidatorStatus(validator), "Initial status should be active")
 
 	// Record just below the probation threshold
-	for range int(pos.probationThreshold)-1 {
+	for range uint64(pos.probationThreshold) - 1 {
 		pos.RecordInvalidTransaction(validator)
 	}
 
@@ -186,7 +186,7 @@ func TestRecordInvalidTransactionEdgeCases(t *testing.T) {
 	assert.Equal(t, StatusProbation, metrics.Status, "Status should change to probation at threshold")
 
 	// Record more to hit slashing threshold
-	for range int(pos.slashThreshold) {
+	for range uint64(pos.slashThreshold) {
 		pos.RecordInvalidTransaction(validator)
 	}
 
@@ -260,9 +260,9 @@ func (s *MetricsSuite) TestRewardCalculation() {
 	slashedReward := s.pos.CalculateValidatorReward(s.validators["slashed"])
 
 	// Verify rewards by status
-	s.Greater(activeReward, 0, "Active validator should receive positive reward")
+	s.Greater(activeReward, uint64(0), "Active validator should receive positive reward")
 	s.Less(probationReward, activeReward, "Probation reward should be less than active reward")
-	s.Equal(0, slashedReward, "Slashed validator should receive no reward")
+	s.Equal(uint64(0), slashedReward, "Slashed validator should receive no reward")
 
 	// Test consecutive block bonus
 	// Record several blocks for the active validator
@@ -275,7 +275,7 @@ func (s *MetricsSuite) TestRewardCalculation() {
 
 	// Test non-existent validator
 	nonExistentValidator := common.HexToAddress("0x7777777777777777777777777777777777777777")
-	s.Equal(0, s.pos.CalculateValidatorReward(nonExistentValidator), "Non-existent validator should get 0 reward")
+	s.Equal(uint64(0), s.pos.CalculateValidatorReward(nonExistentValidator), "Non-existent validator should get 0 reward")
 }
 
 // TestStatusTransitions tests validator status transitions
@@ -326,7 +326,7 @@ func (s *MetricsSuite) TestMissedValidations() {
 	s.Equal(uint64(0), initialMetrics.MissedValidations, "Should start with 0 missed validations")
 
 	// Test progression to probation
-	for range int(s.pos.probationThreshold) {
+	for range uint64(s.pos.probationThreshold) {
 		s.pos.RecordMissedValidation(validator)
 	}
 	s.Equal(StatusProbation, s.pos.GetValidatorStatus(validator),

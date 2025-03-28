@@ -12,19 +12,19 @@ import (
 
 // ProofOfStake implements a simple Proof of Stake consensus algorithm
 type ProofOfStake struct {
-	validators      map[common.Address]int // map of validator addresses to their stakes
-	validatorsList  []common.Address       // list of validator addresses for easier selection
-	totalStake      int                    // total stake in the system
-	slotDuration    time.Duration          // duration of each validation slot
-	minStake        int                    // minimum stake required to become a validator
-	mu              sync.RWMutex           // for thread safety
-	baseReward      int                    // base reward for validating a block
-	lastValidatorID int                    // last selected validator (for round-robin option)
-	randao          *rand.Rand             // random number generator for validator selection
+	validators      map[common.Address]uint64 // map of validator addresses to their stakes
+	validatorsList  []common.Address          // list of validator addresses for easier selection
+	totalStake      uint64                    // total stake in the system
+	slotDuration    time.Duration             // duration of each validation slot
+	minStake        uint64                    // minimum stake required to become a validator
+	mu              sync.RWMutex              // for thread safety
+	baseReward      uint64                    // base reward for validating a block
+	lastValidatorID uint64                    // last selected validator (for round-robin option)
+	randao          *rand.Rand                // random number generator for validator selection
 
 	// Fields for rewards and penalties
 	validatorMetrics   map[common.Address]*ValidationMetrics // tracking validator performance
-	slashingRate       int                                   // percentage of stake to slash for severe violations
+	slashingRate       uint8                                 // percentage of stake to slash for severe violations
 	probationThreshold uint64                                // missed blocks threshold for probation
 	slashThreshold     uint64                                // severe violation threshold for slashing
 	rewardMultipliers  map[ValidatorStatus]float64           // reward multipliers based on status
@@ -32,9 +32,9 @@ type ProofOfStake struct {
 }
 
 // NewProofOfStake creates a new Proof of Stake consensus instance
-func NewProofOfStake(slotDuration time.Duration, minStake int, baseReward int) *ProofOfStake {
+func NewProofOfStake(slotDuration time.Duration, minStake uint64, baseReward uint64) *ProofOfStake {
 	return &ProofOfStake{
-		validators:         make(map[common.Address]int),
+		validators:         make(map[common.Address]uint64),
 		validatorsList:     []common.Address{},
 		totalStake:         0,
 		slotDuration:       slotDuration,
@@ -65,7 +65,7 @@ func (pos *ProofOfStake) SelectValidator() common.Address {
 
 	// Filter out slashed validators
 	eligibleValidators := []common.Address{}
-	eligibleStake := 0
+	eligibleStake := uint64(0)
 
 	for _, validator := range pos.validatorsList {
 		metrics, hasMetrics := pos.validatorMetrics[validator]
@@ -82,15 +82,16 @@ func (pos *ProofOfStake) SelectValidator() common.Address {
 	// Weighted random selection based on stake
 	if eligibleStake <= 0 {
 		// If no stake in the system (should not happen), use round-robin
-		pos.lastValidatorID = (pos.lastValidatorID + 1) % len(eligibleValidators)
+		pos.lastValidatorID = (pos.lastValidatorID + 1) % uint64(len(eligibleValidators))
 		return eligibleValidators[pos.lastValidatorID]
 	}
 
 	// Generate a random number between 0 and total eligible stake
-	target := pos.randao.Intn(eligibleStake)
+	// Convert to int for compatibility with randao.Intn
+	target := uint64(pos.randao.Intn(int(min(eligibleStake, uint64(int(^uint(0)>>1))))))
 
 	// Find the validator whose stake range contains the target
-	current := 0
+	var current uint64 = 0
 	for _, validator := range eligibleValidators {
 		current += pos.validators[validator]
 		if target < current {
@@ -103,12 +104,12 @@ func (pos *ProofOfStake) SelectValidator() common.Address {
 }
 
 // GetReward calculates the reward for the validator/miner
-func (pos *ProofOfStake) GetReward() int {
+func (pos *ProofOfStake) GetReward() uint64 {
 	return pos.baseReward
 }
 
 // Deposit deposits a validator's stake
-func (pos *ProofOfStake) Deposit(validator common.Address, amount int) {
+func (pos *ProofOfStake) Deposit(validator common.Address, amount uint64) {
 	pos.mu.Lock()
 	defer pos.mu.Unlock()
 
@@ -133,15 +134,15 @@ func (pos *ProofOfStake) Deposit(validator common.Address, amount int) {
 }
 
 // Withdraw withdraws a validator's stake
-func (pos *ProofOfStake) Withdraw(validator common.Address, amount int) {
+func (pos *ProofOfStake) Withdraw(validator common.Address, amount uint64) {
 	pos.mu.Lock()
 	defer pos.mu.Unlock()
 
 	if stake, exists := pos.validators[validator]; exists {
 		// Check if validator is slashed - apply slashing penalty if applicable
-		slashedAmount := 0
+		var slashedAmount uint64 = 0
 		if metrics, hasMetrics := pos.validatorMetrics[validator]; hasMetrics && metrics.Status == StatusSlashed {
-			slashedAmount = (amount * pos.slashingRate) / 100
+			slashedAmount = (amount * uint64(pos.slashingRate)) / 100
 			if slashedAmount > 0 {
 				// Apply penalty by reducing total stake
 				if slashedAmount > stake {
@@ -176,7 +177,7 @@ func (pos *ProofOfStake) Withdraw(validator common.Address, amount int) {
 }
 
 // GetValidatorStake returns the stake of a validator
-func (pos *ProofOfStake) GetValidatorStake(validator common.Address) int {
+func (pos *ProofOfStake) GetValidatorStake(validator common.Address) uint64 {
 	pos.mu.RLock()
 	defer pos.mu.RUnlock()
 

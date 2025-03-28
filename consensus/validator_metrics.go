@@ -7,7 +7,7 @@ import (
 )
 
 // ValidatorStatus represents the current status of a validator
-type ValidatorStatus int
+type ValidatorStatus uint8
 
 const (
 	// StatusActive means the validator is in good standing
@@ -27,12 +27,12 @@ type ValidationMetrics struct {
 	InvalidTransactions uint64
 	LastActiveTime      time.Time
 	Status              ValidatorStatus
-	SlashingPenalty     int // Current cumulative slashing penalty
+	SlashingPenalty     uint64 // Current cumulative slashing penalty
 }
 
 // CalculateValidatorReward calculates the actual reward for a specific validator
 // based on their performance and status
-func (pos *ProofOfStake) CalculateValidatorReward(validator common.Address) int {
+func (pos *ProofOfStake) CalculateValidatorReward(validator common.Address) uint64 {
 	pos.mu.RLock()
 	defer pos.mu.RUnlock()
 
@@ -64,7 +64,7 @@ func (pos *ProofOfStake) CalculateValidatorReward(validator common.Address) int 
 	// Calculate final reward with all multipliers
 	finalReward := float64(baseReward) * statusMultiplier * (1 + consecutiveBonus) * stakeWeight
 
-	return int(finalReward)
+	return uint64(finalReward)
 }
 
 // RecordBlockProduction records that a validator successfully produced a block

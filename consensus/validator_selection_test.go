@@ -19,14 +19,14 @@ func TestValidatorDistribution(t *testing.T) {
 	// Validator1: 200 (20% of total)
 	// Validator2: 300 (30% of total)
 	// Validator3: 500 (50% of total)
-	SetupValidators(pos, map[common.Address]int{
+	SetupValidators(pos, map[common.Address]uint64{
 		TestValidators.Validator1: 200,
 		TestValidators.Validator2: 300,
 		TestValidators.Validator3: 500,
 	})
 
 	// Run multiple selections to get a distribution
-	selections := map[common.Address]int{
+	selections := map[common.Address]uint64{
 		TestValidators.Validator1: 0,
 		TestValidators.Validator2: 0,
 		TestValidators.Validator3: 0,
@@ -69,7 +69,7 @@ func TestSelectionWithSingleValidator(t *testing.T) {
 	pos := CreateDefaultTestPoS(t)
 
 	// Setup a single validator
-	SetupValidators(pos, map[common.Address]int{
+	SetupValidators(pos, map[common.Address]uint64{
 		TestValidators.Validator1: 200,
 	})
 
@@ -88,7 +88,7 @@ func TestSelectionAfterRemoval(t *testing.T) {
 	pos := CreateDefaultTestPoS(t)
 
 	// Setup multiple validators
-	SetupValidators(pos, map[common.Address]int{
+	SetupValidators(pos, map[common.Address]uint64{
 		TestValidators.Validator1: 200,
 		TestValidators.Validator2: 300,
 		TestValidators.Validator3: 500,
@@ -98,7 +98,7 @@ func TestSelectionAfterRemoval(t *testing.T) {
 	pos.Withdraw(TestValidators.Validator1, 200)
 
 	// The removed validator should never be selected
-	selections := map[common.Address]int{
+	selections := map[common.Address]uint64{
 		TestValidators.Validator1: 0,
 		TestValidators.Validator2: 0,
 		TestValidators.Validator3: 0,
@@ -111,7 +111,7 @@ func TestSelectionAfterRemoval(t *testing.T) {
 		selections[selected]++
 	}
 
-	assert.Equal(t, 0, selections[TestValidators.Validator1],
+	assert.Equal(t, uint64(0), selections[TestValidators.Validator1],
 		"Removed validator should never be selected")
 
 	// The remaining validators should be selected proportional to their stake

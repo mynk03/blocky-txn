@@ -50,17 +50,17 @@ func (s *PenaltiesTestSuite) TestRewardCalculation() {
 	// Get the actual calculated reward for active validator
 	activeReward := s.pos.CalculateValidatorReward(s.testValidators.active)
 	// Now compare with what we get from the implementation, not the base reward directly
-	s.Assert().Greater(activeReward, 0, "Active validator should get a positive reward")
+	s.Assert().Greater(activeReward, uint64(0), "Active validator should get a positive reward")
 
 	// Validator on probation should get reduced reward
 	probationReward := s.pos.CalculateValidatorReward(s.testValidators.probation)
 	// Check that probation reward is less than active reward
 	s.Assert().Less(probationReward, activeReward, "Probation reward should be less than active reward")
-	s.Assert().Greater(probationReward, 0, "Probation reward should be positive")
+	s.Assert().Greater(probationReward, uint64(0), "Probation reward should be positive")
 
 	// Slashed validator should get no reward
 	slashedReward := s.pos.CalculateValidatorReward(s.testValidators.slashed)
-	s.Assert().Equal(0, slashedReward, "Slashed validator should get no reward")
+	s.Assert().Equal(uint64(0), slashedReward, "Slashed validator should get no reward")
 }
 
 // TestValidatorSelection tests that slashed validators are excluded from selection
@@ -90,7 +90,7 @@ func (s *PenaltiesTestSuite) TestMissedValidationEscalation() {
 	s.Assert().Equal(StatusActive, initialStatus, "Initial status should be active")
 
 	// Record missed validations until probation threshold
-	for range int(s.pos.probationThreshold) {
+	for range uint64(s.pos.probationThreshold) {
 		s.pos.RecordMissedValidation(testValidator)
 	}
 
@@ -107,7 +107,7 @@ func (s *PenaltiesTestSuite) TestMissedValidationEscalation() {
 
 	// Record more missed validations until slashing threshold
 	initialMissed := metrics.MissedValidations
-	for range int(s.pos.slashThreshold-initialMissed) {
+	for range uint64(s.pos.slashThreshold - initialMissed) {
 		s.pos.RecordMissedValidation(testValidator)
 	}
 
@@ -138,7 +138,7 @@ func (s *PenaltiesTestSuite) TestSlashingMechanism() {
 	// Get initial stake
 	slashedValidator := s.testValidators.slashed
 	initialStake := s.pos.GetValidatorStake(slashedValidator)
-	s.Assert().Equal(500, initialStake, "Initial stake should be 500")
+	s.Assert().Equal(uint64(500), initialStake, "Initial stake should be 500")
 
 	// Verify validator is slashed
 	s.Assert().Equal(StatusSlashed, s.pos.GetValidatorStatus(slashedValidator), "Validator should be slashed")
@@ -153,7 +153,7 @@ func (s *PenaltiesTestSuite) TestSlashingMechanism() {
 
 	// Verify slashing penalty was applied
 	slashingRate := s.pos.slashingRate
-	expectedSlashAmount := (withdrawAmount * slashingRate) / 100
+	expectedSlashAmount := (withdrawAmount * uint64(slashingRate)) / 100
 
 	// Check remaining stake is less than expected after slashing
 	remainingStake := s.pos.GetValidatorStake(slashedValidator)
@@ -200,7 +200,7 @@ func (s *PenaltiesTestSuite) TestInvalidTransactionPenalties() {
 	s.Assert().Equal(StatusActive, s.pos.GetValidatorStatus(testValidator), "Initial status should be active")
 
 	// Record invalid transactions until probation threshold
-	for range int(s.pos.probationThreshold) {
+	for range uint64(s.pos.probationThreshold) {
 		s.pos.RecordInvalidTransaction(testValidator)
 	}
 
@@ -212,7 +212,7 @@ func (s *PenaltiesTestSuite) TestInvalidTransactionPenalties() {
 	metrics.Status = StatusActive
 
 	// Record more invalid transactions until slashing threshold
-	for range int(s.pos.slashThreshold) {
+	for range uint64(s.pos.slashThreshold) {
 		s.pos.RecordInvalidTransaction(testValidator)
 	}
 

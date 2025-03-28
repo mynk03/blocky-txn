@@ -22,28 +22,28 @@ var TestValidators = struct {
 var TestConfig = struct {
 	Default struct {
 		SlotDuration       time.Duration
-		MinStake           int
-		BaseReward         int
+		MinStake           uint64
+		BaseReward         uint64
 		ProbationThreshold uint64
 		SlashThreshold     uint64
-		SlashingRate       int
+		SlashingRate       uint8
 	}
 	HighStake struct {
 		SlotDuration       time.Duration
-		MinStake           int
-		BaseReward         int
+		MinStake           uint64
+		BaseReward         uint64
 		ProbationThreshold uint64
 		SlashThreshold     uint64
-		SlashingRate       int
+		SlashingRate       uint8
 	}
 }{
 	Default: struct {
 		SlotDuration       time.Duration
-		MinStake           int
-		BaseReward         int
+		MinStake           uint64
+		BaseReward         uint64
 		ProbationThreshold uint64
 		SlashThreshold     uint64
-		SlashingRate       int
+		SlashingRate       uint8
 	}{
 		SlotDuration:       5 * time.Second,
 		MinStake:           100,
@@ -54,11 +54,11 @@ var TestConfig = struct {
 	},
 	HighStake: struct {
 		SlotDuration       time.Duration
-		MinStake           int
-		BaseReward         int
+		MinStake           uint64
+		BaseReward         uint64
 		ProbationThreshold uint64
 		SlashThreshold     uint64
-		SlashingRate       int
+		SlashingRate       uint8
 	}{
 		SlotDuration:       10 * time.Second,
 		MinStake:           500,
@@ -70,7 +70,7 @@ var TestConfig = struct {
 }
 
 // CreateTestPoS creates a new ProofOfStake instance for testing
-func CreateTestPoS(t *testing.T, slotDuration time.Duration, minStake, baseReward int) *ProofOfStake {
+func CreateTestPoS(t *testing.T, slotDuration time.Duration, minStake, baseReward uint64) *ProofOfStake {
 	t.Helper()
 	pos := NewProofOfStake(slotDuration, minStake, baseReward)
 
@@ -89,14 +89,14 @@ func CreateDefaultTestPoS(t *testing.T) *ProofOfStake {
 }
 
 // SetupValidators sets up the specified validators with their respective stakes
-func SetupValidators(pos *ProofOfStake, validatorStakes map[common.Address]int) {
+func SetupValidators(pos *ProofOfStake, validatorStakes map[common.Address]uint64) {
 	for validator, stake := range validatorStakes {
 		pos.Deposit(validator, stake)
 	}
 }
 
 // SetupValidatorWithMetrics sets up a validator with the specified stake and metrics
-func SetupValidatorWithMetrics(pos *ProofOfStake, validator common.Address, stake int, status ValidatorStatus, missedValidations uint64, doubleSignings uint64, invalidTxs uint64) {
+func SetupValidatorWithMetrics(pos *ProofOfStake, validator common.Address, stake uint64, status ValidatorStatus, missedValidations uint64, doubleSignings uint64, invalidTxs uint64) {
 	// Add the validator to the set
 	pos.Deposit(validator, stake)
 
@@ -111,7 +111,7 @@ func SetupValidatorWithMetrics(pos *ProofOfStake, validator common.Address, stak
 }
 
 // ConfigureThresholds configures the thresholds for a ProofOfStake instance
-func ConfigureThresholds(pos *ProofOfStake, probationThreshold, slashThreshold uint64, slashingRate int) {
+func ConfigureThresholds(pos *ProofOfStake, probationThreshold, slashThreshold uint64, slashingRate uint8) {
 	pos.probationThreshold = probationThreshold
 	pos.slashThreshold = slashThreshold
 	pos.slashingRate = slashingRate

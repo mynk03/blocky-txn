@@ -41,17 +41,17 @@ func (s *ConsensusTestSuite) TestProofOfStake() {
 
 		// Validator 1 deposits 200
 		pos.Deposit(validator1, 200)
-		s.Equal(200, pos.GetValidatorStake(validator1), "Validator 1 should have 200 stake")
+		s.Equal(uint64(200), pos.GetValidatorStake(validator1), "Validator 1 should have 200 stake")
 		s.Equal(1, len(pos.GetValidatorSet()), "Should have 1 validator after deposit")
 
 		// Validator 2 deposits 300
 		pos.Deposit(validator2, 300)
-		s.Equal(300, pos.GetValidatorStake(validator2), "Validator 2 should have 300 stake")
+		s.Equal(uint64(300), pos.GetValidatorStake(validator2), "Validator 2 should have 300 stake")
 		s.Equal(2, len(pos.GetValidatorSet()), "Should have 2 validators after second deposit")
 
 		// Validator 3 deposits only 50 (less than minimum)
 		pos.Deposit(validator3, 50)
-		s.Equal(0, pos.GetValidatorStake(validator3), "Validator 3 should have 0 stake (below minimum)")
+		s.Equal(uint64(0), pos.GetValidatorStake(validator3), "Validator 3 should have 0 stake (below minimum)")
 		s.Equal(2, len(pos.GetValidatorSet()), "Validator set should still have 2 validators")
 	})
 
@@ -65,23 +65,23 @@ func (s *ConsensusTestSuite) TestProofOfStake() {
 		validator2 := TestValidators.Validator2
 
 		// Setup initial state: validator1 has 200 stake, validator2 has 300 stake
-		SetupValidators(pos, map[common.Address]int{
+		SetupValidators(pos, map[common.Address]uint64{
 			validator1: 299,
 			validator2: 300,
 		})
 
-		s.Equal(299, pos.GetValidatorStake(validator1), "Validator 1 should initially have 299 stake")
-		s.Equal(300, pos.GetValidatorStake(validator2), "Validator 2 should initially have 300 stake")
+		s.Equal(uint64(299), pos.GetValidatorStake(validator1), "Validator 1 should initially have 299 stake")
+		s.Equal(uint64(300), pos.GetValidatorStake(validator2), "Validator 2 should initially have 300 stake")
 		s.Equal(2, len(pos.GetValidatorSet()), "Should initially have 2 validators")
 
 		// Validator 1 withdraws 150
 		pos.Withdraw(validator1, 150)
-		s.Equal(149, pos.GetValidatorStake(validator1), "Validator 1 should have 250 stake after withdrawal")
+		s.Equal(uint64(149), pos.GetValidatorStake(validator1), "Validator 1 should have 250 stake after withdrawal")
 		s.Equal(2, len(pos.GetValidatorSet()), "Validator set should still have 2 validators")
 
 		// Validator 1 withdraws 50 more, falling below minimum
 		pos.Withdraw(validator1, 50)
-		s.Equal(0, pos.GetValidatorStake(validator1), "Validator 1 should have 0 stake after withdrawal")
+		s.Equal(uint64(0), pos.GetValidatorStake(validator1), "Validator 1 should have 0 stake after withdrawal")
 		s.Equal(1, len(pos.GetValidatorSet()), "Validator set should have 1 validator after removal")
 	})
 
@@ -104,7 +104,7 @@ func (s *ConsensusTestSuite) TestProofOfStake() {
 
 		// Setup a single validator
 		validator2 := TestValidators.Validator2
-		SetupValidators(pos, map[common.Address]int{
+		SetupValidators(pos, map[common.Address]uint64{
 			validator2: 300,
 		})
 
@@ -127,12 +127,12 @@ func (s *ConsensusTestSuite) TestProofOfStakeVariations() {
 
 		// Deposit less than minimum
 		pos.Deposit(validator, 400)
-		s.Equal(0, pos.GetValidatorStake(validator), "Stake should be 0 (below minimum)")
+		s.Equal(uint64(0), pos.GetValidatorStake(validator), "Stake should be 0 (below minimum)")
 		s.Equal(0, len(pos.GetValidatorSet()), "Validator set should be empty")
 
 		// Deposit enough to meet minimum
 		pos.Deposit(validator, 500)
-		s.Equal(500, pos.GetValidatorStake(validator), "Stake should be 500")
+		s.Equal(uint64(500), pos.GetValidatorStake(validator), "Stake should be 500")
 		s.Equal(1, len(pos.GetValidatorSet()), "Validator set should have 1 validator")
 
 		// Check other parameters
@@ -156,15 +156,15 @@ func (s *ConsensusTestSuite) TestProofOfStakeEdgeCases() {
 		validator := TestValidators.Validator1
 
 		// Setup validator with initial stake using helper
-		SetupValidators(pos, map[common.Address]int{
+		SetupValidators(pos, map[common.Address]uint64{
 			validator: 200,
 		})
 
-		s.Equal(200, pos.GetValidatorStake(validator), "Stake should be 200")
+		s.Equal(uint64(200), pos.GetValidatorStake(validator), "Stake should be 200")
 
 		// Try to withdraw 300 (more than staked)
 		pos.Withdraw(validator, 300)
-		s.Equal(0, pos.GetValidatorStake(validator), "Stake should be 0 after withdrawing all")
+		s.Equal(uint64(0), pos.GetValidatorStake(validator), "Stake should be 0 after withdrawing all")
 		s.Equal(0, len(pos.GetValidatorSet()), "Validator set should be empty")
 	})
 
@@ -172,7 +172,7 @@ func (s *ConsensusTestSuite) TestProofOfStakeEdgeCases() {
 		pos := CreateDefaultTestPoS(s.T())
 
 		// Setup multiple validators with different stakes
-		SetupValidators(pos, map[common.Address]int{
+		SetupValidators(pos, map[common.Address]uint64{
 			TestValidators.Validator1: 200,
 			TestValidators.Validator2: 300,
 			TestValidators.Validator3: 500,
