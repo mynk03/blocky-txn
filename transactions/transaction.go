@@ -116,12 +116,14 @@ func (t *Transaction) Validate() (bool, error) {
 }
 
 var (
-	ErrInvalidSender      = errors.New("invalid sender")
-	ErrInvalidRecipient   = errors.New("invalid recipient")
+	ErrInvalidSender      = errors.New("invalid sender address")
+	ErrInvalidRecipient   = errors.New("invalid recipient address")
 	ErrInvalidAmount      = errors.New("invalid amount")
 	ErrInvalidNonce       = errors.New("invalid nonce")
 	ErrInvalidBlockNumber = errors.New("invalid block number")
+	ErrInvalidTimestamp   = errors.New("invalid timestamp")
 	ErrInsufficientFunds  = errors.New("insufficient funds")
+	ErrNilStateTrie       = errors.New("state trie is nil")
 	ErrInvalidSignature   = errors.New("invalid signature")
 	ErrSignatureMismatch  = errors.New("signature doesn't match sender")
 	ErrEmptySignature     = errors.New("signature is empty")

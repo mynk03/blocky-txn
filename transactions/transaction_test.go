@@ -50,13 +50,18 @@ func (suite *TransactionTestSuite) TestTransactionSigning() {
 	// Generate transaction hash
 	tx.TransactionHash = tx.GenerateHash()
 
+	// Verify the signature before signing
+	isValid, err := tx.Verify()
+	suite.Error(err)
+	suite.False(isValid)
+
 	// Sign the transaction
 	signature, err := suite.senderWallet.SignTransaction(common.HexToHash(tx.TransactionHash))
 	suite.NoError(err)
 	tx.Signature = signature
 
 	// Verify the signature
-	isValid, err := tx.Verify()
+	isValid, err = tx.Verify()
 	suite.NoError(err)
 	suite.True(isValid)
 	suite.Equal(suite.senderWallet.GetAddress(), tx.From)
