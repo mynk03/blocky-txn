@@ -1,30 +1,33 @@
-	package consensus
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
 
-	import (
-		"time"
+package consensus
 
-		"github.com/ethereum/go-ethereum/common"
-	)
+import (
+	"time"
 
-	type ConsensusAlgorithm interface {
-		// SelectValidator selects the next block validator.
-		SelectValidator() common.Address
+	"github.com/ethereum/go-ethereum/common"
+)
 
-		// GetReward calculates the reward for the validator/miner.
-		GetReward() int
+type ConsensusAlgorithm interface {
+	// SelectValidator selects the next block validator.
+	SelectValidator() common.Address
 
-		// Deposit deposits a validator's stake.
-		Deposit(validator common.Address, amount int)
+	// GetReward calculates the reward for the validator/miner.
+	GetReward() int
 
-		// Withdraw withdraws a validator's stake.
-		Withdraw(validator common.Address, amount int)
+	// Deposit deposits a validator's stake.
+	Deposit(validator common.Address, amount int)
 
-		// GetValidatorStake returns the stake of a validator.
-		GetValidatorStake(validator common.Address) int
+	// Withdraw withdraws a validator's stake.
+	Withdraw(validator common.Address, amount int)
 
-		// GetValidatorSet returns the current validator set.
-		GetValidatorSet() []common.Address
+	// GetValidatorStake returns the stake of a validator.
+	GetValidatorStake(validator common.Address) int
 
-		// GetSlotDuration returns the duration of a slot.
-		GetSlotDuration() time.Duration
-	}
+	// GetValidatorSet returns the current validator set.
+	GetValidatorSet() []common.Address
+
+	// GetSlotDuration returns the duration of a slot.
+	GetSlotDuration() time.Duration
+}
