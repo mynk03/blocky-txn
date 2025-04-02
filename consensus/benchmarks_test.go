@@ -14,14 +14,14 @@ func BenchmarkValidatorSelection(b *testing.B) {
 
 	// Setup a varied set of validators with different stakes
 	validatorCount := 100
-	totalStake := 0
+	totalStake := uint64(0)
 
 	for i := 0; i < validatorCount; i++ {
 		// Create a unique address for each validator
 		addr := common.BytesToAddress([]byte{byte(i), byte(i + 1), byte(i + 2)})
 
 		// Assign a stake amount between 100 and 1000
-		stake := 100 + (i%10)*100
+		stake := uint64(100 + (i%10)*100)
 		pos.Deposit(addr, stake)
 		totalStake += stake
 	}
