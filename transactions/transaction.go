@@ -4,11 +4,14 @@
 package transactions
 
 import (
+	"blockchain-simulator/state"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	ethcrypto "github.com/ethereum/go-ethereum/crypto"
 )
 
 // TransactionStatus represents the status of a transaction using an enum.
@@ -29,6 +32,7 @@ type Transaction struct {
 	Status          TransactionStatus // Finality status of the Transaction
 	Amount          uint64            // Amount to transfer
 	Nonce           uint64            // Sender's transaction count
+	Signature       []byte            // Transaction signature
 }
 
 // TransactionHash will always uniques as the sender could not have same nonce
@@ -41,29 +45,88 @@ func (t *Transaction) GenerateHash() string {
 	return hex.EncodeToString(hash[:])
 }
 
+// Verify verifies the transaction signature
+func (t *Transaction) Verify() (bool, error) {
+	if t.Signature == nil {
+		return false, ErrEmptySignature
+	}
+
+	// Generate transaction hash
+	txHash := common.HexToHash(t.GenerateHash())
+
+	sigPublicKey, err := ethcrypto.Ecrecover(txHash.Bytes(), t.Signature)
+	if err != nil {
+		return false, errors.New(ErrInvalidSignature.Error() + err.Error())
+	}
+
+	// Convert the recovered public key to an address
+	recoveredAddr := common.BytesToAddress(ethcrypto.Keccak256(sigPublicKey[1:])[12:])
+
+	// Compare the recovered address with the sender's address
+	matches := recoveredAddr == t.From
+	return matches, nil
+}
+
+// ValidateWithState validates the transaction with state
+func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) {
+	// First check basic validation
+	if status, err := t.Validate(); !status {
+		return false, err
+	}
+
+	// Check sender account exists and has sufficient funds
+	senderAccount, _ := stateTrie.GetAccount(t.From)
+	if senderAccount == nil {
+		return false, ErrInvalidSender
+	}
+
+	if senderAccount.Balance < t.Amount {
+		return false, ErrInsufficientFunds
+	}
+
+	if t.Nonce != senderAccount.Nonce {
+		return false, ErrInvalidNonce
+	}
+
+	// Finally verify signature
+	matches, err := t.Verify()
+	if err != nil {
+		return false, err
+	}
+	if !matches {
+		return false, ErrInvalidSignature
+	}
+
+	return true, nil
+}
+
 // Validate validates the transaction
-func (t *Transaction) Validate() bool {
-	return t.isValidAddress() &&
-		t.isPositiveAmount() &&
-		t.isValidNonce() &&
-		t.hasSufficientBalance()
+func (t *Transaction) Validate() (bool, error) {
+	if t.From == (common.Address{}) {
+		return false, ErrInvalidSender
+	}
+
+	if t.To == (common.Address{}) {
+		return false, ErrInvalidRecipient
+	}
+
+	if t.Amount <= 0 {
+		return false, ErrInvalidAmount
+	}
+
+	return true, nil
 }
 
-func (t *Transaction) isValidAddress() bool {
-	return t.From != common.Address{} && t.To != common.Address{}
-}
-
-func (t *Transaction) isPositiveAmount() bool {
-	return t.Amount > 0
-}
-
-func (t *Transaction) isValidNonce() bool {
-	return t.Nonce > 0
-}
-
-func (t *Transaction) hasSufficientBalance() bool {
-	// sender balance ..
-	// TODO: need to integrate blockchain's mptTrie storage for sender balance
-	balance := uint64(10000)
-	return balance >= t.Amount
-}
+var (
+	ErrInvalidSender      = errors.New("invalid sender address")
+	ErrInvalidRecipient   = errors.New("invalid recipient address")
+	ErrInvalidAmount      = errors.New("invalid amount")
+	ErrInvalidNonce       = errors.New("invalid nonce")
+	ErrInvalidBlockNumber = errors.New("invalid block number")
+	ErrInvalidTimestamp   = errors.New("invalid timestamp")
+	ErrInsufficientFunds  = errors.New("insufficient funds")
+	ErrNilStateTrie       = errors.New("state trie is nil")
+	ErrInvalidSignature   = errors.New("invalid signature")
+	ErrSignatureMismatch  = errors.New("signature doesn't match sender")
+	ErrEmptySignature     = errors.New("signature is empty")
+)

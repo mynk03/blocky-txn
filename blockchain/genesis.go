@@ -5,6 +5,7 @@ package blockchain
 
 import (
 	"blockchain-simulator/state"
+	"blockchain-simulator/transactions"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -24,7 +25,7 @@ func CreateGenesisBlock(accountsToFund []string, amountsToFund []uint64, stateTr
 	genesisBlock := Block{
 		Index:        0,
 		Timestamp:    time.Now().UTC().String(),
-		Transactions: []Transaction{},
+		Transactions: []transactions.Transaction{},
 		PrevHash:     "0",
 		Hash:         "", // Populated later
 		StateRoot:    stateTrie.RootHash(),
