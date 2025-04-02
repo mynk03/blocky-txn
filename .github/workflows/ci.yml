@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: ["*"]  # Trigger on pushes to all branches
+  pull_request:
+    branches: ["*"]  # Trigger on pull requests to all branches
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Critical: Set up Go before running tests
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.0'  # Explicitly specify your Go version
+          check-latest: true  # Ensures the latest patch version
+          cache: true         # Enable module caching for faster builds
+
+      # Run the unit tests
+      - name: Go Unit Tests
+        run: go test -v ./...
+
+      # Run the tests coverage
+      - name: Go Tests Coverage
+        run: |
+          go test -coverprofile=coverage.out ./...
+          go tool cover -func=coverage.out | grep 'total:' | awk '{if ($3 < 90.0) exit 1}'
+
+      # Run Cleanup
+      - name: Cleanup Coverage File
+        run: rm -f coverage.out
