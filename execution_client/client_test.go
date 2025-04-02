@@ -19,8 +19,8 @@ type ExecutionClientTestSuite struct {
 	suite.Suite
 	txPool1 *transaction.TransactionPool // First transaction pool for client1
 	txPool2 *transaction.TransactionPool // Second transaction pool for client2
-	client1 *ExecutionClient              // First execution client
-	client2 *ExecutionClient              // Second execution client
+	client1 *ExecutionClient             // First execution client
+	client2 *ExecutionClient             // Second execution client
 }
 
 // SetupTest initializes the test environment before each test
@@ -415,4 +415,110 @@ func (m *mockStream) Read(p []byte) (n int, err error) {
 func (m *mockStream) Close() error {
 	m.closed = true
 	return nil
+}
+
+func (suite *ExecutionClientTestSuite) TestBroadcastError() {
+	// Create a client with no peers
+	txPool := transaction.NewTransactionPool()
+	client, err := NewExecutionClient(txPool)
+	suite.NoError(err)
+	err = client.Start()
+	suite.NoError(err)
+	defer client.Stop()
+
+	// Try to broadcast to non-existent peers
+	tx := &transaction.Transaction{
+		From:        common.HexToAddress("0x123"),
+		To:          common.HexToAddress("0x456"),
+		Amount:      100,
+		Nonce:       1,
+		BlockNumber: 0,
+		Timestamp:   uint64(time.Now().Unix()),
+		Status:      transaction.Pending,
+	}
+	tx.TransactionHash = tx.GenerateHash()
+	err = client.BroadcastTransaction(*tx)
+	suite.Error(err) // Should fail because there are no peers
+
+	// Add a peer but don't connect to it
+	peerPool := transaction.NewTransactionPool()
+	peer, err := NewExecutionClient(peerPool)
+	suite.NoError(err)
+	err = peer.Start()
+	suite.NoError(err)
+	defer peer.Stop()
+
+	// Try to connect but with invalid address
+	err = client.ConnectToPeer("invalid_address")
+	suite.Error(err)
+
+	err = client.BroadcastTransaction(*tx)
+	suite.Error(err) // Should fail because peer is not connected
+
+	// Verify no transactions were added to the peer's pool
+	suite.False(peerPool.HasTransaction(tx.TransactionHash))
+}
+
+func (suite *ExecutionClientTestSuite) TestHandleTransactionStreamError() {
+	// Create two clients
+	txPool1 := transaction.NewTransactionPool()
+	txPool2 := transaction.NewTransactionPool()
+
+	client1, err := NewExecutionClient(txPool1)
+	suite.NoError(err)
+	client2, err := NewExecutionClient(txPool2)
+	suite.NoError(err)
+
+	err = client1.Start()
+	suite.NoError(err)
+	defer client1.Stop()
+
+	err = client2.Start()
+	suite.NoError(err)
+	defer client2.Stop()
+
+	// Connect the clients
+	err = client1.ConnectToPeer(client2.GetAddress())
+	suite.NoError(err)
+
+	// Create an invalid transaction
+	invalidTx := &transaction.Transaction{
+		From:        common.HexToAddress("0x123"),
+		To:          common.HexToAddress("0x456"),
+		Amount:      0, // Invalid amount
+		Nonce:       1,
+		BlockNumber: 0,
+		Timestamp:   uint64(time.Now().Unix()),
+		Status:      transaction.Pending,
+	}
+	invalidTx.TransactionHash = invalidTx.GenerateHash()
+
+	// Try to broadcast the invalid transaction
+	err = client1.BroadcastTransaction(*invalidTx)
+	suite.Error(err) // Should fail validation
+
+	// Verify the transaction was not added to client2's pool
+	suite.False(txPool2.HasTransaction(invalidTx.TransactionHash))
+
+	// Create a valid transaction but with invalid signature
+	unsignedTx := &transaction.Transaction{
+		From:        common.HexToAddress("0x123"),
+		To:          common.HexToAddress("0x456"),
+		Amount:      100,
+		Nonce:       1,
+		BlockNumber: 0,
+		Timestamp:   uint64(time.Now().Unix()),
+		Status:      transaction.Pending,
+	}
+	unsignedTx.TransactionHash = unsignedTx.GenerateHash()
+
+	// Try to broadcast the unsigned transaction
+	err = client1.BroadcastTransaction(*unsignedTx)
+	suite.NoError(err) // Should succeed since signature is not checked in validateTransaction
+
+	// Wait for transaction to propagate
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify the transaction was added to client2's pool
+	suite.True(txPool2.HasTransaction(unsignedTx.TransactionHash))
 }

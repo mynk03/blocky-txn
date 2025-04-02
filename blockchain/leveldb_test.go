@@ -5,6 +5,8 @@ import (
 	"os"
 	"testing"
 
+	"blockchain-simulator/state"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/suite"
 )
@@ -292,4 +294,32 @@ func (suite *LevelDBTestSuite) TestErrorCases() {
 	invalidStorage, err := NewLevelDBStorage("")
 	suite.Error(err)
 	suite.Nil(invalidStorage)
+}
+
+func (suite *LevelDBTestSuite) TestGetState() {
+	// Create a test state trie
+	testTrie := state.NewMptTrie()
+	testAccount := &state.Account{
+		Balance: 1000,
+		Nonce:   1,
+	}
+	err := testTrie.PutAccount(common.HexToAddress("0x123"), testAccount)
+	suite.NoError(err)
+
+	// Get the state root
+	stateRoot := testTrie.RootHash()
+
+	// Put the state
+	err = suite.storage.PutState(stateRoot, testTrie)
+	suite.NoError(err)
+
+	// Get the state
+	retrievedState, err := suite.storage.GetState(stateRoot)
+	suite.NoError(err)
+	suite.NotNil(retrievedState)
+
+	// Test getting non-existent state
+	nonExistentState, err := suite.storage.GetState("non_existent_key")
+	suite.Error(err)
+	suite.Nil(nonExistentState)
 }

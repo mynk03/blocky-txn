@@ -495,3 +495,33 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationEdgeCases() {
 	suite.True(valid)
 	suite.NoError(err)
 }
+
+func (suite *TransactionPoolTestSuite) TestHasTransaction() {
+	// Create a new transaction pool
+	tp := NewTransactionPool()
+
+	// Create a test transaction
+	tx := Transaction{
+		From:        common.HexToAddress("0x123"),
+		To:          common.HexToAddress("0x456"),
+		Amount:      100,
+		Nonce:       1,
+		BlockNumber: 1,
+		Timestamp:   1000,
+		Status:      Pending,
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Initially, the transaction should not be in the pool
+	suite.False(tp.HasTransaction(tx.TransactionHash))
+
+	// Add the transaction
+	err := tp.AddTransaction(tx)
+	suite.NoError(err)
+
+	// Now the transaction should be in the pool
+	suite.True(tp.HasTransaction(tx.TransactionHash))
+
+	// Test with non-existent transaction hash
+	suite.False(tp.HasTransaction("0x123"))
+}
