@@ -3,7 +3,6 @@ package validator
 import (
 	"blockchain-simulator/blockchain"
 	"blockchain-simulator/transactions"
-	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
@@ -53,11 +52,9 @@ func (v *Validator) ProposeNewBlock() blockchain.Block {
 	prevBlock := v.LocalChain.GetLatestBlock()
 	newBlock := blockchain.CreateBlock(pendingTxs, prevBlock)
 
-	fmt.Println("here state trie before processing block", v.LocalChain.StateTrie.RootHash())
 	// process the transaction on the validator 's state trie
 	blockchain.ProcessBlock(newBlock, v.LocalChain.StateTrie)
 
-	fmt.Println("here state trie after processing block", v.LocalChain.StateTrie.RootHash())
 	// update the state root
 	newBlock.StateRoot = v.LocalChain.StateTrie.RootHash()
 	// return Block
