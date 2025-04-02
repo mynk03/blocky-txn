@@ -193,3 +193,64 @@ func (suite *MptTrieTestSuite) TestConstAddressesAndUpdates() {
 	suite.Equal(uint64(7), retrieved.Nonce, "Wrong updated nonce for User1")
 
 }
+
+func (suite *MptTrieTestSuite) TestRootHash() {
+	// Initial root hash should be empty
+	initialHash := suite.trie.RootHash()
+	suite.NotEmpty(initialHash)
+
+	// Add an account and verify root hash changes
+	account := &Account{
+		Balance: 1000,
+		Nonce:   5,
+	}
+	address := common.HexToAddress(user1)
+	err := suite.trie.PutAccount(address, account)
+	suite.NoError(err)
+
+	newHash := suite.trie.RootHash()
+	suite.NotEmpty(newHash)
+	suite.NotEqual(initialHash, newHash, "Root hash should change after adding an account")
+}
+
+func (suite *MptTrieTestSuite) TestCopy() {
+	// Create and populate original trie
+	account := &Account{
+		Balance: 1000,
+		Nonce:   5,
+	}
+	address := common.HexToAddress(user1)
+	err := suite.trie.PutAccount(address, account)
+	suite.NoError(err)
+
+	// Create a copy
+	copiedTrie := suite.trie.Copy()
+	suite.NotNil(copiedTrie)
+	suite.NotNil(copiedTrie.store)
+	suite.NotNil(copiedTrie.Trie)
+
+	// Verify the copy has the same data
+	retrievedAccount, err := copiedTrie.GetAccount(address)
+	suite.NoError(err)
+	suite.NotNil(retrievedAccount)
+	suite.Equal(account.Balance, retrievedAccount.Balance)
+	suite.Equal(account.Nonce, retrievedAccount.Nonce)
+
+	// Verify root hashes are the same
+	suite.Equal(suite.trie.RootHash(), copiedTrie.RootHash())
+}
+
+func (suite *MptTrieTestSuite) TestPutAccountError() {
+	// Test with nil account
+	address := common.HexToAddress("")
+	err := suite.trie.PutAccount(address, nil)
+	suite.Error(err)
+}
+
+func (suite *MptTrieTestSuite) TestGetAccountError() {
+	// Test with invalid address (empty address)
+	address := common.Address{}
+	account, err := suite.trie.GetAccount(address)
+	suite.Error(err)
+	suite.Nil(account)
+}

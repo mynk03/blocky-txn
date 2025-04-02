@@ -1,6 +1,11 @@
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 package state
 
 import (
+	"errors"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/nspcc-dev/neo-go/pkg/core/mpt"
 	"github.com/nspcc-dev/neo-go/pkg/core/storage"
@@ -28,6 +33,9 @@ func NewMptTrie() *MptTrie {
 // derived from the given Ethereum address. The address is converted to nibbles
 // to match the trie key format.
 func (m *MptTrie) PutAccount(address common.Address, account *Account) error {
+	if address == (common.Address{}) {
+		return errors.New("address is empty")
+	}
 	// Convert Ethereum address to a nibble representation for trie indexing.
 	addressBytes := addressToNibbles(address)
 	// Serialize the Account object into a byte slice.

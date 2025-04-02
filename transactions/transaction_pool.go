@@ -1,84 +1,72 @@
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 package transactions
 
 import (
 	"errors"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 )
 
 // TransactionPool manages the lifecycle of transactions, including tracking pending and processed transactions.
 type TransactionPool struct {
-	PendingTransactions []Transaction      // List of transactions that are yet to be confirmed or finalized.
-	AllTransactions     []Transaction      // List of all transactions that have passed through the pool, including pending and finalized ones.
-	storage             TransactionStorage // Storage layer responsible for persisting transaction data.
+	PendingTransactions []Transaction // List of transactions that are yet to be confirmed or finalized.
 }
 
 // NewTransactionPool initializes a new TransactionPool
-func NewTransactionPool(storage TransactionStorage) (*TransactionPool, TransactionStorage) {
+func NewTransactionPool() *TransactionPool {
 
 	transactionPool := &TransactionPool{
 		PendingTransactions: []Transaction{},
-		AllTransactions:     []Transaction{},
-		storage:             storage,
 	}
 
-	return transactionPool, storage
+	return transactionPool
 }
 
 // AddTransaction adds a transaction to the PendingTransactions and AllTransactions
 func (tp *TransactionPool) AddTransaction(tx Transaction) error {
-	if !tx.Validate() {
-		return errors.New("invalid transaction")
+	if status, err := tx.Validate(); !status {
+		return errors.New("invalid transaction error: " + err.Error())
 	}
 	tp.PendingTransactions = append(tp.PendingTransactions, tx)
-	tp.AllTransactions = append(tp.AllTransactions, tx)
-	if err := tp.storage.PutTransaction(tx); err != nil {
-		return err
-	}
 	return nil
 }
 
 // RemoveTransaction removes a transaction from the PendingTransactions
 func (tp *TransactionPool) RemoveTransaction(hash string) error {
+	found := false
 	for i, tx := range tp.PendingTransactions {
 		if tx.TransactionHash == hash {
 			tp.PendingTransactions = slices.Delete(tp.PendingTransactions, i, i+1)
+			found = true
+			break
 		}
 	}
-	if err := tp.storage.RemoveTransaction(hash); err != nil {
-		return err
+	if !found {
+		return errors.New("transaction hash not found")
 	}
 	return nil
 }
 
 // RemoveBulkTransactions removes multiple transactions from the PendingTransactions
-func (tp *TransactionPool) RemoveBulkTransactions(hashes []string) error {
+func (tp *TransactionPool) RemoveBulkTransactions(hashes []string) {
 	for _, hash := range hashes {
-		if err := tp.RemoveTransaction(hash); err != nil {
-			return err
+		err := tp.RemoveTransaction(hash)
+		if err != nil {
+			logrus.WithFields(logrus.Fields{
+				"type":     "transaction_pool",
+				"error":    err,
+				"txn_hash": hash,
+			}).Error("failed to remove transaction")
 		}
 	}
-	return nil
 }
 
 // GetPendingTransactions returns the PendingTransactions
 func (tp *TransactionPool) GetPendingTransactions() []Transaction {
 	return tp.PendingTransactions
-}
-
-// GetAllTransactions returns the AllTransactions
-func (tp *TransactionPool) GetAllTransactions() []Transaction {
-	return tp.AllTransactions
-}
-
-// GetPendingTransactions returns the PendingTransactions From Storage
-func (tp *TransactionPool) GetPendingTransactionsFromStorage() ([]Transaction, error) {
-	return tp.storage.GetPendingTransactions()
-}
-
-// GetAllTransactions returns the AllTransactions From Storage
-func (tp *TransactionPool) GetAllTransactionsFromStorage() ([]Transaction, error) {
-	return tp.storage.GetAllTransactions()
 }
 
 // GetTransactionByHash returns a transaction by hash
@@ -89,13 +77,4 @@ func (tp *TransactionPool) GetTransactionByHash(hash string) *Transaction {
 		}
 	}
 	return nil
-}
-
-// GetTransactionByHashFromStorage returns a transaction by hash from storage
-func (tp *TransactionPool) GetTransactionByHashFromStorage(hash string) (*Transaction, error) {
-	tx, err := tp.storage.GetTransaction(hash)
-	if err != nil {
-		return nil, err
-	}
-	return &tx, nil
 }

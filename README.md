@@ -1,5 +1,8 @@
 # Blockchain Simulator
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+
+
 ## Overview
 The Blockchain Simulator is a Go-based application designed to emulate core blockchain functionalities. It includes mining, transaction handling, and achieving consensus among nodes. This modular simulator provides a foundational platform for learning and prototyping blockchain concepts, with extensible features for advanced use cases.
 
@@ -159,4 +162,4 @@ mining:
 - Support smart contracts.
 
 ## License
-This project is licensed under the MIT License. See the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. The MIT License is a permissive license that is short and to the point.

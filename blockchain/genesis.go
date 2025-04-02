@@ -1,7 +1,11 @@
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 package blockchain
 
 import (
 	"blockchain-simulator/state"
+	"blockchain-simulator/transactions"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -21,7 +25,7 @@ func CreateGenesisBlock(accountsToFund []string, amountsToFund []uint64, stateTr
 	genesisBlock := Block{
 		Index:        0,
 		Timestamp:    time.Now().UTC().String(),
-		Transactions: []Transaction{},
+		Transactions: []transactions.Transaction{},
 		PrevHash:     "0",
 		Hash:         "", // Populated later
 		StateRoot:    stateTrie.RootHash(),

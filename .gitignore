@@ -29,3 +29,4 @@ chaindata/
 testdb/
 transactions/pool_data/
 transactions/test_pool_data/
+validator/testdata/
