@@ -1,7 +1,7 @@
 package blockchain
 
 import (
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"os"
 	"testing"
 
@@ -111,7 +111,7 @@ func (suite *LevelDBTestSuite) TestGetLatestBlock() {
 
 func (suite *LevelDBTestSuite) TestPutAndGetTransaction() {
 	// Create a test transaction
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:        common.HexToAddress(testUser1),
 		To:          common.HexToAddress(testUser2),
 		Amount:      100,
@@ -133,12 +133,12 @@ func (suite *LevelDBTestSuite) TestPutAndGetTransaction() {
 	// Test getting non-existent transaction
 	retrievedTx, err = suite.storage.GetTransaction("0x999")
 	suite.Error(err)
-	suite.Equal(transactions.Transaction{}, retrievedTx)
+	suite.Equal(transaction.Transaction{}, retrievedTx)
 }
 
 func (suite *LevelDBTestSuite) TestGetPendingTransactions() {
 	// Create test transactions
-	txs := []transactions.Transaction{
+	txs := []transaction.Transaction{
 		{
 			From:        common.HexToAddress(testUser1),
 			To:          common.HexToAddress(testUser3),
@@ -171,7 +171,7 @@ func (suite *LevelDBTestSuite) TestGetPendingTransactions() {
 
 func (suite *LevelDBTestSuite) TestRemoveTransaction() {
 	// Create a test transaction
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:        common.HexToAddress(testUser1),
 		To:          common.HexToAddress(testUser2),
 		Amount:      100,
@@ -192,12 +192,12 @@ func (suite *LevelDBTestSuite) TestRemoveTransaction() {
 	// Verify transaction is removed
 	retrievedTx, err := suite.storage.GetTransaction(tx.TransactionHash)
 	suite.Error(err)
-	suite.Equal(transactions.Transaction{}, retrievedTx)
+	suite.Equal(transaction.Transaction{}, retrievedTx)
 }
 
 func (suite *LevelDBTestSuite) TestRemoveBulkTransactions() {
 	// Create test transactions
-	txs := []transactions.Transaction{
+	txs := []transaction.Transaction{
 		{
 			From:        common.HexToAddress(testUser1),
 			To:          common.HexToAddress(testUser2),
@@ -233,7 +233,7 @@ func (suite *LevelDBTestSuite) TestRemoveBulkTransactions() {
 	for _, hash := range hashes {
 		retrievedTx, err := suite.storage.GetTransaction(hash)
 		suite.Error(err)
-		suite.Equal(transactions.Transaction{}, retrievedTx)
+		suite.Equal(transaction.Transaction{}, retrievedTx)
 	}
 }
 
@@ -275,7 +275,7 @@ func (suite *LevelDBTestSuite) TestErrorCases() {
 	suite.NoError(err) // LevelDB should still store invalid data
 
 	// Test invalid transaction data
-	invalidTx := transactions.Transaction{
+	invalidTx := transaction.Transaction{
 		From:        common.Address{}, // Empty address
 		To:          common.Address{}, // Empty address
 		Amount:      0,

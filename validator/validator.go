@@ -2,7 +2,7 @@ package validator
 
 import (
 	"blockchain-simulator/blockchain"
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
@@ -11,12 +11,12 @@ import (
 // Validator struct to manage transaction validation and block addition
 type Validator struct {
 	Address         common.Address
-	TransactionPool *transactions.TransactionPool
+	TransactionPool *transaction.TransactionPool
 	LocalChain      *blockchain.Blockchain
 }
 
 // NewValidator creates a new Validator instance
-func NewValidator(address common.Address, tp *transactions.TransactionPool, bc *blockchain.Blockchain) *Validator {
+func NewValidator(address common.Address, tp *transaction.TransactionPool, bc *blockchain.Blockchain) *Validator {
 	return &Validator{
 		Address:         address,
 		TransactionPool: tp,
@@ -25,7 +25,7 @@ func NewValidator(address common.Address, tp *transactions.TransactionPool, bc *
 }
 
 // AddTransaction validates and adds a transaction to the transaction pool
-func (v *Validator) AddTransaction(tx transactions.Transaction) error {
+func (v *Validator) AddTransaction(tx transaction.Transaction) error {
 	// Validate transaction with current state
 	if status, err := tx.ValidateWithState(v.LocalChain.StateTrie); !status {
 		logrus.WithFields(logrus.Fields{

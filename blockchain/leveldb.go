@@ -5,7 +5,7 @@ package blockchain
 
 import (
 	"blockchain-simulator/state"
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"encoding/json"
 	"log"
 
@@ -117,7 +117,7 @@ func (s *LevelDBStorage) GetState(stateRoot string) (*state.MptTrie, error) {
 
 // PutTransaction stores a transaction in the database.
 // It serializes the transaction to JSON and stores it using the transaction's hash as the key.
-func (s *LevelDBStorage) PutTransaction(tx transactions.Transaction) error {
+func (s *LevelDBStorage) PutTransaction(tx transaction.Transaction) error {
 	data, err := json.Marshal(tx)
 	if err != nil {
 		return err
@@ -127,24 +127,24 @@ func (s *LevelDBStorage) PutTransaction(tx transactions.Transaction) error {
 
 // GetTransaction retrieves a transaction from the database using its hash.
 // It deserializes the stored JSON data back into a Transaction struct.
-func (s *LevelDBStorage) GetTransaction(hash string) (transactions.Transaction, error) {
+func (s *LevelDBStorage) GetTransaction(hash string) (transaction.Transaction, error) {
 	data, err := s.db.Get([]byte(transactionPrefix+hash), nil)
 	if err != nil {
-		return transactions.Transaction{}, err
+		return transaction.Transaction{}, err
 	}
-	var tx transactions.Transaction
+	var tx transaction.Transaction
 	err = json.Unmarshal(data, &tx)
 	return tx, err
 }
 
 // GetPendingTransactions retrieves all pending transactions from the database.
 // It deserializes the stored JSON data back into a slice of Transaction structs.
-func (s *LevelDBStorage) GetPendingTransactions() ([]transactions.Transaction, error) {
+func (s *LevelDBStorage) GetPendingTransactions() ([]transaction.Transaction, error) {
 	data, err := s.db.Get([]byte(pendingKey), nil)
 	if err != nil {
 		return nil, err
 	}
-	var transactions []transactions.Transaction
+	var transactions []transaction.Transaction
 	err = json.Unmarshal(data, &transactions)
 	return transactions, err
 }
@@ -168,7 +168,7 @@ func (s *LevelDBStorage) RemoveBulkTransactions(hashes []string) error {
 
 // PutPendingTransactions stores a list of pending transactions in the database.
 // It serializes the transactions to JSON and stores them under the pendingKey.
-func (s *LevelDBStorage) PutPendingTransactions(txs []transactions.Transaction) error {
+func (s *LevelDBStorage) PutPendingTransactions(txs []transaction.Transaction) error {
 	data, err := json.Marshal(txs)
 	if err != nil {
 		return err

@@ -2,7 +2,7 @@ package blockchain
 
 import (
 	"blockchain-simulator/state"
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"os"
 	"testing"
 
@@ -29,7 +29,7 @@ func (suite *StateRootTestSuite) TestProcessBlockWithMissingAccounts() {
 	// Create a test block with a transaction
 	block := Block{
 		Index: 1,
-		Transactions: []transactions.Transaction{
+		Transactions: []transaction.Transaction{
 			{
 				From:   common.HexToAddress("0x1234567890123456789012345678901234567890"),
 				To:     common.HexToAddress("0x0987654321098765432109876543210987654321"),
@@ -90,7 +90,7 @@ func (suite *StateRootTestSuite) TestProcessBlockWithValidAccounts() {
 	// Create a test block with a transaction
 	block := Block{
 		Index: 1,
-		Transactions: []transactions.Transaction{
+		Transactions: []transaction.Transaction{
 			{
 				From:   senderAddr,
 				To:     receiverAddr,

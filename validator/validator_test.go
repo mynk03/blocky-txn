@@ -2,7 +2,7 @@ package validator
 
 import (
 	"blockchain-simulator/blockchain"
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"blockchain-simulator/wallet"
 	"os"
 	"testing"
@@ -29,9 +29,9 @@ type ValidatorTestSuite struct {
 	storage3       *blockchain.LevelDBStorage
 	blockchain1    *blockchain.Blockchain
 	blockchain2    *blockchain.Blockchain
-	tp1            *transactions.TransactionPool
-	tp2            *transactions.TransactionPool
-	tp3            *transactions.TransactionPool
+	tp1            *transaction.TransactionPool
+	tp2            *transaction.TransactionPool
+	tp3            *transaction.TransactionPool
 	validator1     *Validator
 	validator2     *Validator
 	user1Wallet    *wallet.MockWallet
@@ -61,9 +61,9 @@ func (suite *ValidatorTestSuite) SetupTest() {
 	suite.NoError(err)
 
 	// Initialize transaction pools
-	suite.tp1 = transactions.NewTransactionPool()
-	suite.tp2 = transactions.NewTransactionPool()
-	suite.tp3 = transactions.NewTransactionPool()
+	suite.tp1 = transaction.NewTransactionPool()
+	suite.tp2 = transaction.NewTransactionPool()
+	suite.tp3 = transaction.NewTransactionPool()
 
 	// Create wallets for testing
 	var err2 error
@@ -116,8 +116,8 @@ func (suite *ValidatorTestSuite) TearDownTest() {
 }
 
 // Helper function to create and sign a transaction
-func (suite *ValidatorTestSuite) createSignedTransaction(wallet *wallet.MockWallet, to ethcommon.Address, amount uint64, nonce uint64, blockNumber uint32) transactions.Transaction {
-	tx := transactions.Transaction{
+func (suite *ValidatorTestSuite) createSignedTransaction(wallet *wallet.MockWallet, to ethcommon.Address, amount uint64, nonce uint64, blockNumber uint32) transaction.Transaction {
+	tx := transaction.Transaction{
 		From:        wallet.GetAddress(),
 		To:          to,
 		Amount:      amount,
@@ -230,7 +230,7 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidIndex() {
 
 func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 	// Create a transaction
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:        ethcommon.HexToAddress(user1),
 		To:          ethcommon.HexToAddress(user2),
 		Amount:      2,
@@ -244,7 +244,7 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 	block := blockchain.Block{
 		Index:        suite.blockchain1.LastBlockNumber + 1,
 		PrevHash:     suite.blockchain1.GetLatestBlock().Hash,
-		Transactions: []transactions.Transaction{tx},
+		Transactions: []transaction.Transaction{tx},
 		Timestamp:    time.Now().UTC().String(),
 	}
 
@@ -265,7 +265,7 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidSender() {
 	// Create a transaction with invalid sender address
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:        ethcommon.Address{}, // Empty address
 		To:          ethcommon.HexToAddress(user2),
 		Amount:      2,
@@ -281,7 +281,7 @@ func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidSender() {
 
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidRecipient() {
 	// Create a transaction with invalid recipient address
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:        ethcommon.HexToAddress(user1),
 		To:          ethcommon.Address{}, // Empty address
 		Amount:      2,
@@ -297,7 +297,7 @@ func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidRecipient() {
 
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidBlockNumber() {
 	// Create a transaction with invalid block number
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:        ethcommon.HexToAddress(user1),
 		To:          ethcommon.HexToAddress(user2),
 		Amount:      2,
@@ -320,7 +320,7 @@ func (suite *ValidatorTestSuite) TestProposeNewBlockWithEmptyPool() {
 
 func (suite *ValidatorTestSuite) TestValidateBlockWithInvalidTransactions() {
 	// Create a block with invalid transaction
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:        ethcommon.HexToAddress(user1),
 		To:          ethcommon.HexToAddress(user2),
 		Amount:      20, // Amount greater than balance
@@ -333,7 +333,7 @@ func (suite *ValidatorTestSuite) TestValidateBlockWithInvalidTransactions() {
 	block := blockchain.Block{
 		Index:        suite.blockchain1.LastBlockNumber + 1,
 		PrevHash:     suite.blockchain1.GetLatestBlock().Hash,
-		Transactions: []transactions.Transaction{tx},
+		Transactions: []transaction.Transaction{tx},
 		Timestamp:    time.Now().UTC().String(),
 	}
 

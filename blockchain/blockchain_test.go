@@ -1,7 +1,7 @@
 package blockchain
 
 import (
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"os"
 	"testing"
 
@@ -99,14 +99,14 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	prevBlock := suite.bc.Chain[last_block_number]
 
 	// Create and process a transaction
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:   senderAddress,
 		To:     receiverAddress,
 		Amount: 3,
 		Nonce:  0,
 	}
 
-	newBlock := CreateBlock([]transactions.Transaction{tx}, prevBlock)
+	newBlock := CreateBlock([]transaction.Transaction{tx}, prevBlock)
 	ProcessBlock(newBlock, suite.bc.StateTrie)
 	success, err := suite.bc.AddBlock(newBlock)
 	suite.NoError(err)
@@ -129,7 +129,7 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 // - Retrieves and verifies the stored block
 func (suite *BlockchainTestSuite) TestBlockPersistence() {
 	// Create and add a new block
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:   common.HexToAddress(user1),
 		To:     common.HexToAddress(ext_user1),
 		Amount: 5,
@@ -140,7 +140,7 @@ func (suite *BlockchainTestSuite) TestBlockPersistence() {
 	prevBlock, err := suite.storage.GetBlock(latestHash)
 	suite.NoError(err)
 
-	newBlock := CreateBlock([]transactions.Transaction{tx}, prevBlock)
+	newBlock := CreateBlock([]transaction.Transaction{tx}, prevBlock)
 	success, err := suite.bc.AddBlock(newBlock)
 	suite.NoError(err)
 	suite.True(success)
@@ -161,7 +161,7 @@ func (suite *BlockchainTestSuite) TestMultipleTransactions() {
 	receiver := common.HexToAddress(ext_user1)
 
 	// Create multiple transactions with sequential nonces
-	txs := []transactions.Transaction{
+	txs := []transaction.Transaction{
 		{From: sender, To: receiver, Amount: 3, Nonce: 0},
 		{From: sender, To: receiver, Amount: 2, Nonce: 1},
 	}
@@ -204,7 +204,7 @@ func (suite *BlockchainTestSuite) TestGetBlockByHashNotFound() {
 // - Verifies that block addition fails with an error
 func (suite *BlockchainTestSuite) TestAddBlockStorageFailure() {
 	// Create a new block
-	tx := transactions.Transaction{
+	tx := transaction.Transaction{
 		From:   common.HexToAddress(user1),
 		To:     common.HexToAddress(ext_user1),
 		Amount: 5,
@@ -212,7 +212,7 @@ func (suite *BlockchainTestSuite) TestAddBlockStorageFailure() {
 	}
 
 	prevBlock := suite.bc.GetLatestBlock()
-	newBlock := CreateBlock([]transactions.Transaction{tx}, prevBlock)
+	newBlock := CreateBlock([]transaction.Transaction{tx}, prevBlock)
 
 	// Close storage to force failure
 	suite.storage.Close()
