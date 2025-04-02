@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 
 	"github.com/ethereum/go-ethereum/common"
 	ethcrypto "github.com/ethereum/go-ethereum/crypto"
@@ -54,7 +53,7 @@ func (t *Transaction) Verify() (bool, error) {
 
 	sigPublicKey, err := ethcrypto.Ecrecover(txHash.Bytes(), t.Signature)
 	if err != nil {
-		log.Fatal(err)
+		return false, errors.New(ErrInvalidSignature.Error() + err.Error())
 	}
 
 	// Convert the recovered public key to an address
