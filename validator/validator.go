@@ -39,6 +39,9 @@ func (v *Validator) AddTransaction(tx transactions.Transaction) error {
 	// Add validated transaction to pool
 	v.TransactionPool.AddTransaction(tx)
 
+	// TransactionPool.AddTransaction(tx) return error if the transaction is invalid
+	// which is handled already in the transaction ValidateWithState function
+
 	return nil
 }
 

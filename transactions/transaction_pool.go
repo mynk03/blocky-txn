@@ -24,8 +24,8 @@ func NewTransactionPool() *TransactionPool {
 
 // AddTransaction adds a transaction to the PendingTransactions and AllTransactions
 func (tp *TransactionPool) AddTransaction(tx Transaction) error {
-	if status, _ := tx.Validate(); !status {
-		return errors.New("invalid transaction")
+	if status, err := tx.Validate(); !status {
+		return errors.New("invalid transaction error: " + err.Error())
 	}
 	tp.PendingTransactions = append(tp.PendingTransactions, tx)
 	return nil
