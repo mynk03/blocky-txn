@@ -44,20 +44,21 @@ func (v *Validator) AddTransaction(tx transaction.Transaction) error {
 	return nil
 }
 
-// ProposeBlock validates and adds transactions from the transaction pool to the blockchain
-func (v *Validator) ProposeNewBlock() blockchain.Block {
-	// Get all pending transaction from the transaction pool
+// CreateNewBlock creates a new block from the transaction pool
+func (v *Validator) CreateNewBlock() blockchain.Block {
+	// Get all pending transactions from the transaction pool
 	pendingTxs := v.TransactionPool.GetPendingTransactions()
-	// Create a new block with the valid transaction
+
+	// Create a new block with the valid transactions
 	prevBlock := v.LocalChain.GetLatestBlock()
 	newBlock := blockchain.CreateBlock(pendingTxs, prevBlock)
 
-	// process the transaction on the validator 's state trie
+	// Process the transactions on the validator's state trie
 	blockchain.ProcessBlock(newBlock, v.LocalChain.StateTrie)
 
-	// update the state root
+	// Update the state root
 	newBlock.StateRoot = v.LocalChain.StateTrie.RootHash()
-	// return Block
+
 	return newBlock
 }
 

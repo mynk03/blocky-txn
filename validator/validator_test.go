@@ -158,7 +158,7 @@ func (suite *ValidatorTestSuite) TestValidatorBlockProposalAndValidation() {
 	suite.validator1.AddTransaction(tx)
 
 	// Validator1 proposes a block
-	proposedBlock := suite.validator1.ProposeNewBlock()
+	proposedBlock := suite.validator1.CreateNewBlock()
 
 	// Validator2 validates the block
 	isValid := suite.validator2.ValidateBlock(proposedBlock)
@@ -313,7 +313,7 @@ func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidBlockNumber() {
 
 func (suite *ValidatorTestSuite) TestProposeNewBlockWithEmptyPool() {
 	// Propose a block with empty transaction pool
-	block := suite.validator1.ProposeNewBlock()
+	block := suite.validator1.CreateNewBlock()
 	suite.NotNil(block)
 	suite.Equal(0, len(block.Transactions))
 }
@@ -384,7 +384,7 @@ func (suite *ValidatorTestSuite) TestMultipleTransactionsInBlock() {
 	suite.validator1.AddTransaction(tx2)
 
 	// Propose and validate block
-	block := suite.validator1.ProposeNewBlock()
+	block := suite.validator1.CreateNewBlock()
 	isValid := suite.validator2.ValidateBlock(block)
 	suite.True(isValid)
 
