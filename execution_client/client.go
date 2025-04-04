@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/libp2p/go-libp2p"
@@ -16,6 +17,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
 )
 
@@ -229,4 +231,47 @@ func (c *ExecutionClient) IsConnectedTo(addr string) bool {
 
 	_, exists := c.peers[targetInfo.ID]
 	return exists && c.host.Network().Connectedness(targetInfo.ID) == network.Connected
+}
+
+// ConnectToPeer connects to another execution client
+func (c *ExecutionClient) ConnectToPeer(addr string) error {
+	c.mu.RLock()
+	if c.stopped {
+		c.mu.RUnlock()
+		return fmt.Errorf("client is stopped")
+	}
+	c.mu.RUnlock()
+
+	targetAddr, err := multiaddr.NewMultiaddr(addr)
+	if err != nil {
+		return fmt.Errorf("invalid address: %w", err)
+	}
+
+	targetInfo, err := peer.AddrInfoFromP2pAddr(targetAddr)
+	if err != nil {
+		return fmt.Errorf("invalid peer address: %w", err)
+	}
+
+	c.host.Peerstore().AddAddrs(targetInfo.ID, targetInfo.Addrs, peerstore.PermanentAddrTTL)
+
+	if err := c.host.Connect(c.ctx, *targetInfo); err != nil {
+		return fmt.Errorf("failed to connect to peer: %w", err)
+	}
+
+	time.Sleep(50 * time.Millisecond)
+
+	if c.host.Network().Connectedness(targetInfo.ID) != network.Connected {
+		return fmt.Errorf("connection not established with peer")
+	}
+
+	c.mu.Lock()
+	c.peers[targetInfo.ID] = struct{}{}
+	c.mu.Unlock()
+
+	return nil
+}
+
+// GetPeerID returns the node's own peer ID
+func (c *ExecutionClient) GetPeerID() string {
+	return c.host.ID().String()
 }
