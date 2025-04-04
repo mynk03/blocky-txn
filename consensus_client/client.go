@@ -1,0 +1,593 @@
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
+package consensus_client
+
+import (
+	"blockchain-simulator/blockchain"
+	"blockchain-simulator/consensus"
+	"context"
+	"crypto/rand"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/libp2p/go-libp2p"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	"github.com/sirupsen/logrus"
+)
+
+const (
+	// ProtocolID is the protocol identifier for our gossip network
+	ProtocolID = "/blockchain-simulator/consensus/1.0.0"
+
+	// TopicName is the name of the pubsub topic for consensus messages
+	TopicName = "consensus"
+
+	// DiscoveryInterval is how often to look for peers
+	DiscoveryInterval = 1 * time.Minute
+)
+
+// MessageType denotes the type of consensus message
+type MessageType int
+
+const (
+	// BlockProposal is a message containing a new block proposal
+	BlockProposal MessageType = iota
+
+	// Vote is a vote for a proposed block
+	Vote
+
+	// ValidationMissed is a notification that a validator missed their slot
+	ValidationMissed
+
+	// DoubleSignEvidence is evidence of a validator double signing
+	DoubleSignEvidence
+
+	// InvalidBlockEvidence is evidence of a validator proposing an invalid block
+	InvalidBlockEvidence
+)
+
+// ConsensusMessage represents a message exchanged between consensus nodes
+type ConsensusMessage struct {
+	Type      MessageType       `json:"type"`
+	Sender    common.Address    `json:"sender"`
+	BlockData *blockchain.Block `json:"block_data,omitempty"`
+	Vote      *VoteData         `json:"vote,omitempty"`
+	Evidence  *EvidenceData     `json:"evidence,omitempty"`
+	Timestamp time.Time         `json:"timestamp"`
+}
+
+// VoteData contains information for a vote message
+type VoteData struct {
+	BlockHash string         `json:"block_hash"`
+	Validator common.Address `json:"validator"`
+	Approve   bool           `json:"approve"`
+}
+
+// EvidenceData contains evidence of validator misbehavior
+type EvidenceData struct {
+	Validator    common.Address `json:"validator"`
+	EvidenceType MessageType    `json:"evidence_type"`
+	BlockHash    string         `json:"block_hash,omitempty"`
+	Reason       string         `json:"reason,omitempty"`
+}
+
+// ConsensusClient manages the p2p network for consensus algorithms
+type ConsensusClient struct {
+	ctx              context.Context
+	cancel           context.CancelFunc
+	host             host.Host
+	pubsub           *pubsub.PubSub
+	topic            *pubsub.Topic
+	subscription     *pubsub.Subscription
+	Consensus        consensus.ConsensusAlgorithm
+	selfAddress      common.Address
+	discoveryService mdns.Service
+
+	// Channels for message handling
+	proposalCh chan *blockchain.Block
+	voteCh     chan *VoteData
+	evidenceCh chan *EvidenceData
+
+	// For keeping track of seen messages to prevent duplicates
+	seenMessages map[string]bool
+	seenMutex    sync.RWMutex
+
+	logger *logrus.Logger
+}
+
+// NewConsensusClient creates a new consensus client with a randomly generated validator address
+// and an internal Proof of Stake consensus instance
+func NewConsensusClient(
+	listenAddr string,
+	initialStake uint64,
+	logger *logrus.Logger,
+) (*ConsensusClient, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Generate a random validator address
+	randBytes := make([]byte, 20)
+	if _, err := rand.Read(randBytes); err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to generate random address: %w", err)
+	}
+	selfAddress := common.BytesToAddress(randBytes)
+
+	// Initialize a logger if not provided
+	if logger == nil {
+		logger = logrus.New()
+		logger.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp: true,
+		})
+		logger.SetLevel(logrus.InfoLevel)
+	}
+
+	// Create a new Proof of Stake consensus instance with default parameters
+	slotDuration := 5 * time.Second
+	minStake := uint64(100)
+	baseReward := uint64(10)
+	posConsensus := consensus.NewProofOfStake(slotDuration, minStake, baseReward)
+
+	// Add our initial stake to become a validator
+	if initialStake >= minStake {
+		posConsensus.Deposit(selfAddress, initialStake)
+		logger.WithFields(logrus.Fields{
+			"address": selfAddress.Hex(),
+			"stake":   initialStake,
+		}).Info("Added initial stake for validator")
+	} else if initialStake > 0 {
+		logger.WithFields(logrus.Fields{
+			"address":  selfAddress.Hex(),
+			"stake":    initialStake,
+			"minStake": minStake,
+		}).Warn("Initial stake below minimum, not added as validator")
+	}
+
+	// Create a new libp2p host
+	h, err := libp2p.New(
+		libp2p.ListenAddrStrings(listenAddr),
+	)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
+	}
+
+	// Create a new GossipSub instance
+	ps, err := pubsub.NewGossipSub(ctx, h)
+	if err != nil {
+		cancel()
+		h.Close()
+		return nil, fmt.Errorf("failed to create gossipsub: %w", err)
+	}
+
+	client := &ConsensusClient{
+		ctx:          ctx,
+		cancel:       cancel,
+		host:         h,
+		pubsub:       ps,
+		Consensus:    posConsensus,
+		selfAddress:  selfAddress,
+		proposalCh:   make(chan *blockchain.Block, 100),
+		voteCh:       make(chan *VoteData, 100),
+		evidenceCh:   make(chan *EvidenceData, 100),
+		seenMessages: make(map[string]bool),
+		logger:       logger,
+	}
+
+	logger.WithFields(logrus.Fields{
+		"peerID":    h.ID().String(),
+		"addrs":     h.Addrs(),
+		"validator": selfAddress.Hex(),
+	}).Info("Created new consensus client")
+
+	return client, nil
+}
+
+// Start initializes and starts the consensus client
+func (c *ConsensusClient) Start() error {
+	// Join the pubsub topic
+	var err error
+	c.topic, err = c.pubsub.Join(TopicName)
+	if err != nil {
+		return fmt.Errorf("failed to join topic: %w", err)
+	}
+
+	// Subscribe to the topic
+	c.subscription, err = c.topic.Subscribe()
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to topic: %w", err)
+	}
+
+	// Setup mDNS discovery
+	c.discoveryService = mdns.NewMdnsService(c.host, ProtocolID, &discoveryNotifee{c: c})
+	if err := c.discoveryService.Start(); err != nil {
+		return fmt.Errorf("failed to start discovery service: %w", err)
+	}
+
+	// Start message handling goroutine
+	go c.handleMessages()
+
+	// Start validator selection loop in a goroutine
+	go c.runValidatorSelectionLoop()
+
+	c.logger.Info("Consensus client started successfully")
+	return nil
+}
+
+// Stop gracefully shuts down the consensus client
+func (c *ConsensusClient) Stop() error {
+	c.logger.Info("Stopping consensus client")
+
+	if c.subscription != nil {
+		c.subscription.Cancel()
+	}
+
+	if c.topic != nil {
+		c.topic.Close()
+	}
+
+	// mDNS discovery service will stop when the context is cancelled
+
+	c.cancel()
+
+	if c.host != nil {
+		if err := c.host.Close(); err != nil {
+			return fmt.Errorf("failed to close host: %w", err)
+		}
+	}
+
+	close(c.proposalCh)
+	close(c.voteCh)
+	close(c.evidenceCh)
+
+	return nil
+}
+
+// ProposeBlock broadcasts a new block proposal
+func (c *ConsensusClient) ProposeBlock(block *blockchain.Block) error {
+	msg := ConsensusMessage{
+		Type:      BlockProposal,
+		Sender:    c.selfAddress,
+		BlockData: block,
+		Timestamp: time.Now(),
+	}
+
+	return c.publishMessage(msg)
+}
+
+// SubmitVote broadcasts a vote for a block
+func (c *ConsensusClient) SubmitVote(blockHash string, approve bool) error {
+	vote := VoteData{
+		BlockHash: blockHash,
+		Validator: c.selfAddress,
+		Approve:   approve,
+	}
+
+	msg := ConsensusMessage{
+		Type:      Vote,
+		Sender:    c.selfAddress,
+		Vote:      &vote,
+		Timestamp: time.Now(),
+	}
+
+	return c.publishMessage(msg)
+}
+
+// ReportMissedValidation reports that a validator missed their validation slot
+func (c *ConsensusClient) ReportMissedValidation(validator common.Address) error {
+	evidence := EvidenceData{
+		Validator:    validator,
+		EvidenceType: ValidationMissed,
+		Reason:       "Validator missed their validation slot",
+	}
+
+	msg := ConsensusMessage{
+		Type:      ValidationMissed,
+		Sender:    c.selfAddress,
+		Evidence:  &evidence,
+		Timestamp: time.Now(),
+	}
+
+	// Record the missed validation in the consensus mechanism
+	c.Consensus.RecordMissedValidation(validator)
+
+	return c.publishMessage(msg)
+}
+
+// ReportDoubleSign reports evidence of a validator double signing
+func (c *ConsensusClient) ReportDoubleSign(validator common.Address, blockHash string) error {
+	evidence := EvidenceData{
+		Validator:    validator,
+		EvidenceType: DoubleSignEvidence,
+		BlockHash:    blockHash,
+		Reason:       "Validator signed multiple blocks at the same height",
+	}
+
+	msg := ConsensusMessage{
+		Type:      DoubleSignEvidence,
+		Sender:    c.selfAddress,
+		Evidence:  &evidence,
+		Timestamp: time.Now(),
+	}
+
+	// Record the double sign in the consensus mechanism
+	c.Consensus.RecordDoubleSign(validator)
+
+	return c.publishMessage(msg)
+}
+
+// ReportInvalidBlock reports evidence of a validator proposing an invalid block
+func (c *ConsensusClient) ReportInvalidBlock(validator common.Address, blockHash string, reason string) error {
+	evidence := EvidenceData{
+		Validator:    validator,
+		EvidenceType: InvalidBlockEvidence,
+		BlockHash:    blockHash,
+		Reason:       reason,
+	}
+
+	msg := ConsensusMessage{
+		Type:      InvalidBlockEvidence,
+		Sender:    c.selfAddress,
+		Evidence:  &evidence,
+		Timestamp: time.Now(),
+	}
+
+	// Record the invalid transaction in the consensus mechanism
+	c.Consensus.RecordInvalidTransaction(validator)
+
+	return c.publishMessage(msg)
+}
+
+// GetProposalChannel returns the channel for receiving block proposals
+func (c *ConsensusClient) GetProposalChannel() <-chan *blockchain.Block {
+	return c.proposalCh
+}
+
+// GetVoteChannel returns the channel for receiving votes
+func (c *ConsensusClient) GetVoteChannel() <-chan *VoteData {
+	return c.voteCh
+}
+
+// GetEvidenceChannel returns the channel for receiving evidence
+func (c *ConsensusClient) GetEvidenceChannel() <-chan *EvidenceData {
+	return c.evidenceCh
+}
+
+// ConnectToPeer establishes a connection to a peer
+func (c *ConsensusClient) ConnectToPeer(peerAddr string) error {
+	peerInfo, err := peer.AddrInfoFromString(peerAddr)
+	if err != nil {
+		return fmt.Errorf("invalid peer address: %w", err)
+	}
+
+	if err := c.host.Connect(c.ctx, *peerInfo); err != nil {
+		return fmt.Errorf("failed to connect to peer: %w", err)
+	}
+
+	c.logger.WithField("peer", peerAddr).Info("Connected to peer")
+	return nil
+}
+
+// PeerInfo returns information about the host's peer ID and addresses
+func (c *ConsensusClient) PeerInfo() string {
+	hostID := c.host.ID()
+	addrs := c.host.Addrs()
+
+	var peerAddrs []string
+	for _, addr := range addrs {
+		peerAddrs = append(peerAddrs, fmt.Sprintf("%s/p2p/%s", addr.String(), hostID.String()))
+	}
+
+	return fmt.Sprintf("PeerID: %s\nAddresses: %v", hostID.String(), peerAddrs)
+}
+
+// Peers returns a list of connected peers
+func (c *ConsensusClient) Peers() []peer.ID {
+	return c.host.Network().Peers()
+}
+
+// handleMessages processes incoming messages from the subscription
+func (c *ConsensusClient) handleMessages() {
+	for {
+		msg, err := c.subscription.Next(c.ctx)
+		if err != nil {
+			if c.ctx.Err() != nil {
+				// Context was canceled, client is shutting down
+				return
+			}
+			c.logger.WithError(err).Error("Error receiving message from subscription")
+			continue
+		}
+
+		// Skip messages from ourselves
+		if msg.ReceivedFrom == c.host.ID() {
+			continue
+		}
+
+		// Deserialize the message
+		var consensusMsg ConsensusMessage
+		if err := json.Unmarshal(msg.Data, &consensusMsg); err != nil {
+			c.logger.WithError(err).Error("Failed to unmarshal consensus message")
+			continue
+		}
+
+		// Check if we've seen this message before (deduplication)
+		messageID := fmt.Sprintf("%s-%d-%s", consensusMsg.Sender.Hex(), consensusMsg.Type, consensusMsg.Timestamp)
+		c.seenMutex.RLock()
+		seen := c.seenMessages[messageID]
+		c.seenMutex.RUnlock()
+
+		if seen {
+			continue
+		}
+
+		// Mark as seen
+		c.seenMutex.Lock()
+		c.seenMessages[messageID] = true
+		c.seenMutex.Unlock()
+
+		// Process message based on type
+		c.processMessage(consensusMsg)
+	}
+}
+
+// processMessage handles a consensus message based on its type
+func (c *ConsensusClient) processMessage(msg ConsensusMessage) {
+	switch msg.Type {
+	case BlockProposal:
+		if msg.BlockData != nil {
+			c.logger.WithFields(logrus.Fields{
+				"sender":    msg.Sender.Hex(),
+				"blockHash": msg.BlockData.Hash,
+			}).Info("Received block proposal")
+
+			// Record block production for the validator
+			c.Consensus.RecordBlockProduction(msg.Sender)
+
+			// Forward to the block proposal channel
+			select {
+			case c.proposalCh <- msg.BlockData:
+			default:
+				c.logger.Warn("Block proposal channel full, dropping message")
+			}
+		}
+
+	case Vote:
+		if msg.Vote != nil {
+			c.logger.WithFields(logrus.Fields{
+				"sender":    msg.Sender.Hex(),
+				"validator": msg.Vote.Validator.Hex(),
+				"blockHash": msg.Vote.BlockHash,
+				"approve":   msg.Vote.Approve,
+			}).Info("Received vote")
+
+			// Forward to the vote channel
+			select {
+			case c.voteCh <- msg.Vote:
+			default:
+				c.logger.Warn("Vote channel full, dropping message")
+			}
+		}
+
+	case ValidationMissed, DoubleSignEvidence, InvalidBlockEvidence:
+		if msg.Evidence != nil {
+			c.logger.WithFields(logrus.Fields{
+				"sender":       msg.Sender.Hex(),
+				"validator":    msg.Evidence.Validator.Hex(),
+				"evidenceType": msg.Evidence.EvidenceType,
+				"reason":       msg.Evidence.Reason,
+			}).Info("Received evidence")
+
+			// Apply the penalty based on evidence type
+			switch msg.Evidence.EvidenceType {
+			case ValidationMissed:
+				c.Consensus.RecordMissedValidation(msg.Evidence.Validator)
+			case DoubleSignEvidence:
+				c.Consensus.RecordDoubleSign(msg.Evidence.Validator)
+			case InvalidBlockEvidence:
+				c.Consensus.RecordInvalidTransaction(msg.Evidence.Validator)
+			}
+
+			// Forward to the evidence channel
+			select {
+			case c.evidenceCh <- msg.Evidence:
+			default:
+				c.logger.Warn("Evidence channel full, dropping message")
+			}
+		}
+	}
+}
+
+// publishMessage serializes and publishes a message to the topic
+func (c *ConsensusClient) publishMessage(msg ConsensusMessage) error {
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	if err := c.topic.Publish(c.ctx, data); err != nil {
+		return fmt.Errorf("failed to publish message: %w", err)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"type":   msg.Type,
+		"sender": msg.Sender.Hex(),
+	}).Debug("Published message")
+
+	return nil
+}
+
+// runValidatorSelectionLoop periodically selects a validator for the next block
+func (c *ConsensusClient) runValidatorSelectionLoop() {
+	ticker := time.NewTicker(c.Consensus.GetSlotDuration())
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+			validator := c.Consensus.SelectValidator()
+
+			// Check if we are the selected validator
+			if validator == c.selfAddress {
+				c.logger.WithField("validator", validator.Hex()).Info("We are the selected validator for this slot")
+				// Signal to the application that we should propose a block
+				// Make a call to the Execution Client to get the latest block via gRPC
+				// This would typically be handled by application-specific logic
+			} else {
+				c.logger.WithField("validator", validator.Hex()).Info("Selected validator for this slot")
+			}
+		}
+	}
+}
+
+// discoveryNotifee is a struct for handling peer discovery notifications
+type discoveryNotifee struct {
+	c *ConsensusClient
+}
+
+// HandlePeerFound is called when a new peer is discovered
+func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
+	n.c.logger.WithFields(logrus.Fields{
+		"peerID": pi.ID.String(),
+		"addrs":  pi.Addrs,
+	}).Info("Discovered new peer")
+
+	if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
+		n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
+	}
+}
+
+// GarbageCollectSeenMessages removes old seen messages to prevent memory leaks
+func (c *ConsensusClient) GarbageCollectSeenMessages() {
+	// Run garbage collection periodically
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+			c.seenMutex.Lock()
+			// Simple strategy: just clear the map every 5 minutes
+			// In a real system, you might want to be more sophisticated
+			c.seenMessages = make(map[string]bool)
+			c.seenMutex.Unlock()
+
+			c.logger.Debug("Garbage collected seen messages cache")
+		}
+	}
+}
+
+// GetValidatorAddress returns the validator address used by this client
+func (c *ConsensusClient) GetValidatorAddress() common.Address {
+	return c.selfAddress
+}
