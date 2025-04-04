@@ -157,4 +157,7 @@ func (suite *StateRootTestSuite) TestInitializeStorageWithInvalidPath() {
 	// Optionally verify that the database was created by checking the files
 	_, err := os.Stat(dbPath)
 	suite.Error(err)
+	storage.Close()
+	os.RemoveAll(dbPath)
+	os.RemoveAll("./chaindata")
 }

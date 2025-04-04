@@ -117,6 +117,11 @@ func (t *Transaction) Validate() (bool, error) {
 	return true, nil
 }
 
+// AddressFromString converts a string address to common.Address
+func AddressFromString(addr string) common.Address {
+	return common.HexToAddress(addr)
+}
+
 var (
 	ErrInvalidSender      = errors.New("invalid sender address")
 	ErrInvalidRecipient   = errors.New("invalid recipient address")
