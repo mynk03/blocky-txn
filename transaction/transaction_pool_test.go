@@ -55,10 +55,10 @@ func (suite *TransactionPoolTestSuite) SetupTest() {
 }
 
 // Helper function to create and sign a transaction
-func (suite *TransactionPoolTestSuite) createSignedTransaction(wallet *wallet.MockWallet, to common.Address, amount uint64, nonce uint64, blockNumber uint32) Transaction {
+func (suite *TransactionPoolTestSuite) createSignedTransaction(wallet *wallet.MockWallet, Receiver common.Address, amount uint64, nonce uint64, blockNumber uint32) Transaction {
 	tx := Transaction{
-		From:        wallet.GetAddress(),
-		To:          to,
+		Sender:      wallet.GetAddress(),
+		Receiver:    Receiver,
 		Amount:      amount,
 		Nonce:       nonce,
 		BlockNumber: blockNumber,
@@ -81,8 +81,8 @@ func randomTransaction() Transaction {
 	currentNonce++
 	txn := Transaction{
 		TransactionHash: "", // populate later
-		From:            common.HexToAddress(user1),
-		To:              common.HexToAddress(user2),
+		Sender:          common.HexToAddress(user1),
+		Receiver:        common.HexToAddress(user2),
 		BlockNumber:     blockNumber,
 		Timestamp:       uint64(time.Now().Second()),
 		Status:          1,
@@ -122,8 +122,8 @@ func (suite *TransactionPoolTestSuite) TestAddInvalidTransaction() {
 func (suite *TransactionPoolTestSuite) TestRemoveTransaction() {
 	// Create a test transaction
 	tx := Transaction{
-		From:        common.HexToAddress("0x123"),
-		To:          common.HexToAddress("0x456"),
+		Sender:      common.HexToAddress("0x123"),
+		Receiver:    common.HexToAddress("0x456"),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -198,8 +198,8 @@ func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactionsWithEmptyPool()
 func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactionsWithPartialSuccess() {
 	// Create test transactions
 	tx := Transaction{
-		From:        common.HexToAddress("0x123"),
-		To:          common.HexToAddress("0x456"),
+		Sender:      common.HexToAddress("0x123"),
+		Receiver:    common.HexToAddress("0x456"),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -242,8 +242,8 @@ func (suite *TransactionPoolTestSuite) TestGetTransactionByHash() {
 
 	suite.NotNil(foundTx)
 	suite.Equal(tx1.GenerateHash(), foundTx.TransactionHash)
-	suite.Equal(tx1.From, foundTx.From)
-	suite.Equal(tx1.To, foundTx.To)
+	suite.Equal(tx1.Sender, foundTx.Sender)
+	suite.Equal(tx1.Receiver, foundTx.Receiver)
 	suite.Equal(tx1.Amount, foundTx.Amount)
 	suite.Equal(tx1.Nonce, foundTx.Nonce)
 }
@@ -258,8 +258,8 @@ func (suite *TransactionPoolTestSuite) TestGetTransactionByHashNonExistent() {
 func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
 	// Test valid transaction
 	tx := Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
+		Sender:      common.HexToAddress(user1),
+		Receiver:    common.HexToAddress(user2),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -272,7 +272,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
 
 	// Test transaction with empty sender
 	txEmptyFrom := tx
-	txEmptyFrom.From = common.Address{}
+	txEmptyFrom.Sender = common.Address{}
 	txEmptyFrom.TransactionHash = txEmptyFrom.GenerateHash()
 	valid, err = txEmptyFrom.Validate()
 	suite.False(valid)
@@ -280,7 +280,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
 
 	// Test transaction with empty recipient
 	txEmptyTo := tx
-	txEmptyTo.To = common.Address{}
+	txEmptyTo.Receiver = common.Address{}
 	txEmptyTo.TransactionHash = txEmptyTo.GenerateHash()
 	valid, err = txEmptyTo.Validate()
 	suite.False(valid)
@@ -319,8 +319,8 @@ func (suite *TransactionPoolTestSuite) TestTransactionStatus() {
 
 func (suite *TransactionPoolTestSuite) TestTransactionHashGeneration() {
 	tx := Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
+		Sender:      common.HexToAddress(user1),
+		Receiver:    common.HexToAddress(user2),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -502,8 +502,8 @@ func (suite *TransactionPoolTestSuite) TestHasTransaction() {
 
 	// Create a test transaction
 	tx := Transaction{
-		From:        common.HexToAddress("0x123"),
-		To:          common.HexToAddress("0x456"),
+		Sender:      common.HexToAddress("0x123"),
+		Receiver:    common.HexToAddress("0x456"),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,

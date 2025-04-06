@@ -31,14 +31,14 @@ func (suite *StateRootTestSuite) TestProcessBlockWithMissingAccounts() {
 		Index: 1,
 		Transactions: []transaction.Transaction{
 			{
-				From:   common.HexToAddress("0x1234567890123456789012345678901234567890"),
-				To:     common.HexToAddress("0x0987654321098765432109876543210987654321"),
-				Amount: 100,
+				Sender:   common.HexToAddress("0x1234567890123456789012345678901234567890"),
+				Receiver: common.HexToAddress("0x0987654321098765432109876543210987654321"),
+				Amount:   100,
 			},
 			{
-				From:   common.HexToAddress("0x0000000000000000000000000000000000000100"),
-				To:     common.HexToAddress("0x0987654321098765432109876543210987654321"),
-				Amount: 100,
+				Sender:   common.HexToAddress("0x0000000000000000000000000000000000000100"),
+				Receiver: common.HexToAddress("0x0987654321098765432109876543210987654321"),
+				Amount:   100,
 			},
 		},
 	}
@@ -92,9 +92,9 @@ func (suite *StateRootTestSuite) TestProcessBlockWithValidAccounts() {
 		Index: 1,
 		Transactions: []transaction.Transaction{
 			{
-				From:   senderAddr,
-				To:     receiverAddr,
-				Amount: 100,
+				Sender:   senderAddr,
+				Receiver: receiverAddr,
+				Amount:   100,
 			},
 		},
 	}

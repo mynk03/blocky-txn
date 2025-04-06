@@ -114,8 +114,8 @@ func (suite *LevelDBTestSuite) TestGetLatestBlock() {
 func (suite *LevelDBTestSuite) TestPutAndGetTransaction() {
 	// Create a test transaction
 	tx := transaction.Transaction{
-		From:        common.HexToAddress(testUser1),
-		To:          common.HexToAddress(testUser2),
+		Sender:      common.HexToAddress(testUser1),
+		Receiver:    common.HexToAddress(testUser2),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -142,16 +142,16 @@ func (suite *LevelDBTestSuite) TestGetPendingTransactions() {
 	// Create test transactions
 	txs := []transaction.Transaction{
 		{
-			From:        common.HexToAddress(testUser1),
-			To:          common.HexToAddress(testUser3),
+			Sender:      common.HexToAddress(testUser1),
+			Receiver:    common.HexToAddress(testUser3),
 			Amount:      100,
 			Nonce:       1,
 			BlockNumber: 1,
 			Timestamp:   1234567890,
 		},
 		{
-			From:        common.HexToAddress(testUser2),
-			To:          common.HexToAddress(testUser3),
+			Sender:      common.HexToAddress(testUser2),
+			Receiver:    common.HexToAddress(testUser3),
 			Amount:      200,
 			Nonce:       1,
 			BlockNumber: 1,
@@ -174,8 +174,8 @@ func (suite *LevelDBTestSuite) TestGetPendingTransactions() {
 func (suite *LevelDBTestSuite) TestRemoveTransaction() {
 	// Create a test transaction
 	tx := transaction.Transaction{
-		From:        common.HexToAddress(testUser1),
-		To:          common.HexToAddress(testUser2),
+		Sender:      common.HexToAddress(testUser1),
+		Receiver:    common.HexToAddress(testUser2),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -201,16 +201,16 @@ func (suite *LevelDBTestSuite) TestRemoveBulkTransactions() {
 	// Create test transactions
 	txs := []transaction.Transaction{
 		{
-			From:        common.HexToAddress(testUser1),
-			To:          common.HexToAddress(testUser2),
+			Sender:      common.HexToAddress(testUser1),
+			Receiver:    common.HexToAddress(testUser2),
 			Amount:      100,
 			Nonce:       1,
 			BlockNumber: 1,
 			Timestamp:   1234567890,
 		},
 		{
-			From:        common.HexToAddress(testUser2),
-			To:          common.HexToAddress(testUser3),
+			Sender:      common.HexToAddress(testUser2),
+			Receiver:    common.HexToAddress(testUser3),
 			Amount:      200,
 			Nonce:       1,
 			BlockNumber: 1,
@@ -278,8 +278,8 @@ func (suite *LevelDBTestSuite) TestErrorCases() {
 
 	// Test invalid transaction data
 	invalidTx := transaction.Transaction{
-		From:        common.Address{}, // Empty address
-		To:          common.Address{}, // Empty address
+		Sender:      common.Address{}, // Empty address
+		Receiver:    common.Address{}, // Empty address
 		Amount:      0,
 		Nonce:       0,
 		BlockNumber: 0,

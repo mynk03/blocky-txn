@@ -116,10 +116,10 @@ func (suite *ValidatorTestSuite) TearDownTest() {
 }
 
 // Helper function to create and sign a transaction
-func (suite *ValidatorTestSuite) createSignedTransaction(wallet *wallet.MockWallet, to ethcommon.Address, amount uint64, nonce uint64, blockNumber uint32) transaction.Transaction {
+func (suite *ValidatorTestSuite) createSignedTransaction(wallet *wallet.MockWallet, receiver ethcommon.Address, amount uint64, nonce uint64, blockNumber uint32) transaction.Transaction {
 	tx := transaction.Transaction{
-		From:        wallet.GetAddress(),
-		To:          to,
+		Sender:      wallet.GetAddress(),
+		Receiver:    receiver,
 		Amount:      amount,
 		Nonce:       nonce,
 		BlockNumber: blockNumber,
@@ -231,8 +231,8 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidIndex() {
 func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 	// Create a transaction
 	tx := transaction.Transaction{
-		From:        ethcommon.HexToAddress(user1),
-		To:          ethcommon.HexToAddress(user2),
+		Sender:      ethcommon.HexToAddress(user1),
+		Receiver:    ethcommon.HexToAddress(user2),
 		Amount:      2,
 		Nonce:       1,
 		BlockNumber: uint32(suite.blockchain1.LastBlockNumber) + 1,
@@ -256,7 +256,7 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 	// Modify the state root to make it invalid
 	block.StateRoot = "invalid_hash"
 
-	// Attempt to validate block
+	// Attempt Receiver validate block
 	isValid := suite.validator1.ValidateBlock(block)
 	suite.False(isValid)
 }
@@ -266,8 +266,8 @@ func (suite *ValidatorTestSuite) TestValidateBlockInvalidStateRoot() {
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidSender() {
 	// Create a transaction with invalid sender address
 	tx := transaction.Transaction{
-		From:        ethcommon.Address{}, // Empty address
-		To:          ethcommon.HexToAddress(user2),
+		Sender:      ethcommon.Address{}, // Empty address
+		Receiver:    ethcommon.HexToAddress(user2),
 		Amount:      2,
 		Nonce:       1,
 		BlockNumber: uint32(suite.blockchain1.LastBlockNumber) + 1,
@@ -282,8 +282,8 @@ func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidSender() {
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidRecipient() {
 	// Create a transaction with invalid recipient address
 	tx := transaction.Transaction{
-		From:        ethcommon.HexToAddress(user1),
-		To:          ethcommon.Address{}, // Empty address
+		Sender:      ethcommon.HexToAddress(user1),
+		Receiver:    ethcommon.Address{}, // Empty address
 		Amount:      2,
 		Nonce:       1,
 		BlockNumber: uint32(suite.blockchain1.LastBlockNumber) + 1,
@@ -298,8 +298,8 @@ func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidRecipient() {
 func (suite *ValidatorTestSuite) TestAddTransactionWithInvalidBlockNumber() {
 	// Create a transaction with invalid block number
 	tx := transaction.Transaction{
-		From:        ethcommon.HexToAddress(user1),
-		To:          ethcommon.HexToAddress(user2),
+		Sender:      ethcommon.HexToAddress(user1),
+		Receiver:    ethcommon.HexToAddress(user2),
 		Amount:      2,
 		Nonce:       1,
 		BlockNumber: 0, // Invalid block number
@@ -321,8 +321,8 @@ func (suite *ValidatorTestSuite) TestProposeNewBlockWithEmptyPool() {
 func (suite *ValidatorTestSuite) TestValidateBlockWithInvalidTransactions() {
 	// Create a block with invalid transaction
 	tx := transaction.Transaction{
-		From:        ethcommon.HexToAddress(user1),
-		To:          ethcommon.HexToAddress(user2),
+		Sender:      ethcommon.HexToAddress(user1),
+		Receiver:    ethcommon.HexToAddress(user2),
 		Amount:      20, // Amount greater than balance
 		Nonce:       1,
 		BlockNumber: uint32(suite.blockchain1.LastBlockNumber) + 1,
