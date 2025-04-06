@@ -1,0 +1,36 @@
+package execution_client
+
+import (
+	"github.com/gin-gonic/gin"
+)
+
+// Server represents the API server for the execution client
+type Server struct {
+	client *ExecutionClient
+	router *gin.Engine
+}
+
+// NewServer creates a new API server instance
+func NewServer(client *ExecutionClient) *Server {
+	router := gin.Default()
+	server := &Server{
+		client: client,
+		router: router,
+	}
+
+	// User endpoints
+	router.POST("/transaction", server.addTransaction)
+	router.GET("/node/id", server.getNodeId)
+	router.GET("/transactions", server.getTransactions)
+
+	// Testing endpoints
+	router.GET("/test/peers", server.getAllPeers)
+	router.POST("/test/peer/connect", server.connectToPeer)
+
+	return server
+}
+
+// Start starts the API server
+func (s *Server) Start(port string) error {
+	return s.router.Run(":" + port)
+}

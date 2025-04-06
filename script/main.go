@@ -3,7 +3,6 @@ package main
 import (
 	"blockchain-simulator/blockchain"
 	"blockchain-simulator/execution_client"
-	"blockchain-simulator/rpc"
 	"blockchain-simulator/transaction"
 	"flag"
 	"fmt"
@@ -14,9 +13,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+var (
+	initialUser1Addr = "0x1"
+	initialUser2Addr = "0x2"
+	initialUser3Addr = "0x3"
+)
+
 func main() {
 	// Parse command line flags
-	port := flag.String("port", "8080", "RPC server port")
+	port := flag.String("port", "8080", "API server port")
 	validatorAddr := flag.String("validator", "", "Validator address (required)")
 	bootstrapAddr := flag.String("bootstrap", "", "Bootstrap peer address (optional)")
 	flag.Parse()
@@ -47,8 +52,8 @@ func main() {
 	// Create blockchain
 	chain := blockchain.NewBlockchain(
 		storage,
-		[]string{*validatorAddr},
-		[]uint64{1000000}, // Initial balance for validator
+		[]string{*validatorAddr, initialUser1Addr, initialUser2Addr, initialUser3Addr},
+		[]uint64{1000000, 20, 30, 40}, // Initial balance for validator
 	)
 
 	// Create execution client
@@ -74,10 +79,10 @@ func main() {
 		}
 	}
 
-	// Create and start RPC server
-	server := rpc.NewServer(client)
-	log.Printf("Starting RPC server on port %s", *port)
+	// Create and start API server
+	server := execution_client.NewServer(client)
+	log.Printf("Starting API server on port %s", *port)
 	if err := server.Start(*port); err != nil {
-		log.Fatalf("Failed to start RPC server: %v", err)
+		log.Fatalf("Failed to start API server: %v", err)
 	}
 }
