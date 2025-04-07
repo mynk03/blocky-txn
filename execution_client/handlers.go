@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/gin-gonic/gin"
 )
 
@@ -31,19 +33,62 @@ func (s *Server) addTransaction(c *gin.Context) {
 		return
 	}
 
+	// Validate addresses
+	sender := common.HexToAddress(req.Sender)
+	if sender == (common.Address{}) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sender address"})
+		return
+	}
+
+	receiver := common.HexToAddress(req.Receiver)
+	if receiver == (common.Address{}) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid receiver address"})
+		return
+	}
+
 	// Create transaction
 	tx := transaction.Transaction{
-		Sender:    transaction.AddressFromString(req.Sender),
-		Receiver:  transaction.AddressFromString(req.Receiver),
+		Sender:    sender,
+		Receiver:  receiver,
 		Amount:    req.Amount,
 		Nonce:     req.Nonce,
 		Timestamp: uint64(time.Now().Unix()),
 		Status:    transaction.Pending,
-		Signature: []byte(req.Signature),
 	}
 
 	// Generate transaction hash
 	tx.TransactionHash = tx.GenerateHash()
+
+	// Verify signature
+	sig := common.FromHex(req.Signature)
+	if len(sig) != 65 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid signature length"})
+		return
+	}
+
+	// Recover public key from signature
+	hash := common.HexToHash(tx.TransactionHash)
+	sigPublicKey, err := crypto.Ecrecover(hash.Bytes(), sig)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid signature"})
+		return
+	}
+
+	// Convert public key to address
+	pubKey, err := crypto.UnmarshalPubkey(sigPublicKey)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid public key"})
+		return
+	}
+
+	signerAddress := crypto.PubkeyToAddress(*pubKey)
+	if signerAddress != sender {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Signature does not match sender"})
+		return
+	}
+
+	// Set the signature after validation
+	tx.Signature = sig
 
 	// Broadcast transaction
 	if err := s.client.BroadcastTransaction(tx); err != nil {
@@ -65,7 +110,7 @@ func (s *Server) getTransactions(c *gin.Context) {
 
 // getNodeId returns the node's ID
 func (s *Server) getNodeId(c *gin.Context) {
-	nodeId := s.client.GetPeerID()
+	nodeId := s.client.GetAddress()
 	c.JSON(http.StatusOK, gin.H{"node_id": nodeId})
 }
 
@@ -83,6 +128,12 @@ func (s *Server) connectToPeer(c *gin.Context) {
 		return
 	}
 
+	// Validate peer address format
+	if !isValidPeerAddress(req.Address) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid peer address format"})
+		return
+	}
+
 	// Connect to peer
 	if err := s.client.ConnectToPeer(req.Address); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to connect to peer: %v", err)})
@@ -90,4 +141,13 @@ func (s *Server) connectToPeer(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "success"})
+}
+
+// isValidPeerAddress checks if the peer address is in the correct format
+func isValidPeerAddress(addr string) bool {
+	// Basic validation for multiaddr format
+	// Should start with /ip4/ and contain /p2p/
+	return len(addr) > 0 && addr[0] == '/' &&
+		len(addr) >= 5 && addr[:5] == "/ip4/" &&
+		len(addr) >= 5 && addr[len(addr)-5:] == "/p2p/"
 }
