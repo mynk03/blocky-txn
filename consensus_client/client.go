@@ -7,13 +7,17 @@ import (
 	"blockchain-simulator/blockchain"
 	"blockchain-simulator/consensus"
 	"context"
+	"crypto/ecdsa"
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -194,22 +198,14 @@ type ConsensusClient struct {
 	logger *logrus.Logger
 }
 
-// NewConsensusClient creates a new consensus client with a randomly generated validator address
-// and an internal Proof of Stake consensus instance
+// NewConsensusClient creates a new consensus client with a validator address derived from
+// an environment variable or randomly generated if the environment variable is not set
 func NewConsensusClient(
 	listenAddr string,
 	initialStake uint64,
 	logger *logrus.Logger,
 ) (*ConsensusClient, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-
-	// Generate a random validator address
-	randBytes := make([]byte, 20)
-	if _, err := rand.Read(randBytes); err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to generate random address: %w", err)
-	}
-	selfAddress := common.BytesToAddress(randBytes)
 
 	// Initialize a logger if not provided
 	if logger == nil {
@@ -218,6 +214,43 @@ func NewConsensusClient(
 			FullTimestamp: true,
 		})
 		logger.SetLevel(logrus.InfoLevel)
+	}
+
+	// Get validator address from private key in environment variable or generate randomly
+	var selfAddress common.Address
+
+	// Check if a validator private key is provided in environment variables
+	privateKeyHex := os.Getenv("VALIDATOR_PRIVATE_KEY")
+	if privateKeyHex != "" {
+		// Remove "0x" prefix if present
+		privateKeyHex = strings.TrimPrefix(privateKeyHex, "0x")
+
+		// Parse the private key
+		privateKey, err := crypto.HexToECDSA(privateKeyHex)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("failed to parse validator private key: %w", err)
+		}
+
+		// Derive public key and address
+		publicKey := privateKey.Public()
+		publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+		if !ok {
+			cancel()
+			return nil, fmt.Errorf("failed to get public key from private key")
+		}
+
+		selfAddress = crypto.PubkeyToAddress(*publicKeyECDSA)
+		logger.WithField("address", selfAddress.Hex()).Info("Using validator address from environment variable")
+	} else {
+		// No private key provided, generate a random address
+		randBytes := make([]byte, 20)
+		if _, err := rand.Read(randBytes); err != nil {
+			cancel()
+			return nil, fmt.Errorf("failed to generate random address: %w", err)
+		}
+		selfAddress = common.BytesToAddress(randBytes)
+		logger.WithField("address", selfAddress.Hex()).Info("Generated random validator address (no private key found)")
 	}
 
 	// Create a new Proof of Stake consensus instance with default parameters
