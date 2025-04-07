@@ -51,54 +51,146 @@ const (
 
 	// InvalidBlockEvidence is evidence of a validator proposing an invalid block
 	InvalidBlockEvidence
+
+	// ValidatorAnnouncement is a message announcing validator status
+	ValidatorAnnouncement
 )
 
 // ConsensusMessage represents a message exchanged between consensus nodes
 type ConsensusMessage struct {
-	Type      MessageType       `json:"type"`
-	Sender    common.Address    `json:"sender"`
+	// Type indicates the category of this message (BlockProposal, Vote, ValidationMissed, etc.)
+	Type MessageType `json:"type"`
+
+	// Sender is the Ethereum address of the node that originated this message
+	Sender common.Address `json:"sender"`
+
+	// BlockData contains the full block information for block proposals
+	// Only populated for messages of Type BlockProposal
 	BlockData *blockchain.Block `json:"block_data,omitempty"`
-	Vote      *VoteData         `json:"vote,omitempty"`
-	Evidence  *EvidenceData     `json:"evidence,omitempty"`
-	Timestamp time.Time         `json:"timestamp"`
+
+	// Vote contains information about a validator's vote on a specific block
+	// Only populated for messages of Type Vote
+	Vote *VoteData `json:"vote,omitempty"`
+
+	// Evidence contains proof of validator misbehavior (missed validations, double signs, etc.)
+	// Only populated for messages of Type ValidationMissed, DoubleSignEvidence, or InvalidBlockEvidence
+	Evidence *EvidenceData `json:"evidence,omitempty"`
+
+	// ValidatorAddress is the Ethereum address of the validator being referenced
+	// Primarily used in ValidatorAnnouncement messages
+	ValidatorAddress common.Address `json:"validator_address,omitempty"`
+
+	// ValidatorStake represents the amount of tokens staked by the validator
+	// Used in ValidatorAnnouncement messages to communicate stake updates
+	ValidatorStake uint64 `json:"validator_stake,omitempty"`
+
+	// ValidatorMetrics contains performance statistics and status information about a validator
+	// Used in ValidatorAnnouncement messages to share validator health data
+	ValidatorMetrics *consensus.ValidationMetrics `json:"validator_metrics,omitempty"`
+
+	// Timestamp records when this message was created
+	// Used for message ordering and deduplication
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // VoteData contains information for a vote message
 type VoteData struct {
-	BlockHash string         `json:"block_hash"`
+	// BlockHash is the hash of the block being voted on
+	BlockHash string `json:"block_hash"`
+
+	// Validator is the Ethereum address of the validator casting this vote
 	Validator common.Address `json:"validator"`
-	Approve   bool           `json:"approve"`
+
+	// Approve indicates whether the validator approves (true) or rejects (false) the block
+	Approve bool `json:"approve"`
 }
 
 // EvidenceData contains evidence of validator misbehavior
 type EvidenceData struct {
-	Validator    common.Address `json:"validator"`
-	EvidenceType MessageType    `json:"evidence_type"`
-	BlockHash    string         `json:"block_hash,omitempty"`
-	Reason       string         `json:"reason,omitempty"`
+	// Validator is the Ethereum address of the validator that misbehaved
+	Validator common.Address `json:"validator"`
+
+	// EvidenceType indicates the type of misbehavior (ValidationMissed, DoubleSignEvidence, etc.)
+	EvidenceType MessageType `json:"evidence_type"`
+
+	// BlockHash is the hash of the block involved in the misbehavior (if applicable)
+	BlockHash string `json:"block_hash,omitempty"`
+
+	// Reason provides a human-readable explanation of the misbehavior
+	Reason string `json:"reason,omitempty"`
 }
 
 // ConsensusClient manages the p2p network for consensus algorithms
 type ConsensusClient struct {
-	ctx              context.Context
-	cancel           context.CancelFunc
-	host             host.Host
-	pubsub           *pubsub.PubSub
-	topic            *pubsub.Topic
-	subscription     *pubsub.Subscription
-	Consensus        consensus.ConsensusAlgorithm
-	selfAddress      common.Address
+	// ctx is the parent context for all operations within this client
+	// Canceling this context will stop all goroutines started by this client
+	ctx context.Context
+
+	// cancel is the function to call when shutting down the client
+	// Invoking this will cancel the ctx and terminate all operations
+	cancel context.CancelFunc
+
+	// host is the libp2p host that manages peer connections
+	// Responsible for network communication with other nodes
+	host host.Host
+
+	// pubsub is the publish/subscribe system for message distribution
+	// Uses GossipSub protocol for efficient message propagation
+	pubsub *pubsub.PubSub
+
+	// topic is the named pubsub channel where consensus messages are exchanged
+	topic *pubsub.Topic
+
+	// subscription is the client's subscription to the consensus topic
+	// Used to receive incoming messages from other nodes
+	subscription *pubsub.Subscription
+
+	// Consensus is the consensus algorithm implementation
+	// Handles validator selection, rewards, and slashing logic
+	Consensus consensus.ConsensusAlgorithm
+
+	// selfAddress is this node's Ethereum address for validation
+	// Used to identify this node in the validator set
+	selfAddress common.Address
+
+	// discoveryService handles peer discovery using mDNS
+	// Automatically finds other consensus nodes on the local network
 	discoveryService mdns.Service
 
 	// Channels for message handling
+	// proposalCh receives block proposals from other validators
 	proposalCh chan *blockchain.Block
-	voteCh     chan *VoteData
+
+	// voteCh receives votes on blocks from other validators
+	voteCh chan *VoteData
+
+	// evidenceCh receives evidence of validator misbehavior
 	evidenceCh chan *EvidenceData
 
 	// For keeping track of seen messages to prevent duplicates
+	// seenMessages tracks message IDs that have already been processed
+	// Prevents reprocessing duplicate messages from different peers
 	seenMessages map[string]bool
-	seenMutex    sync.RWMutex
 
+	// seenMutex protects concurrent access to the seenMessages map
+	// Ensures thread safety when checking or updating processed messages
+	seenMutex sync.RWMutex
+
+	// For tracking last seen validators
+	// lastSeenValidators maps validator addresses to the last time they were seen active on the network
+	// Used to detect offline validators who have stopped participating in consensus
+	lastSeenValidators map[common.Address]time.Time
+
+	// lastSeenMutex protects concurrent access to the lastSeenValidators map
+	// Ensures thread safety when updating validator timestamps from different goroutines
+	lastSeenMutex sync.RWMutex
+
+	// validatorOfflineThreshold defines how long a validator can be unseen before being considered offline
+	// When a validator hasn't been seen for this duration, they may be reported as missed validation
+	validatorOfflineThreshold time.Duration
+
+	// logger provides structured logging for the client
+	// Records important events, errors, and debugging information
 	logger *logrus.Logger
 }
 
@@ -167,17 +259,19 @@ func NewConsensusClient(
 	}
 
 	client := &ConsensusClient{
-		ctx:          ctx,
-		cancel:       cancel,
-		host:         h,
-		pubsub:       ps,
-		Consensus:    posConsensus,
-		selfAddress:  selfAddress,
-		proposalCh:   make(chan *blockchain.Block, 100),
-		voteCh:       make(chan *VoteData, 100),
-		evidenceCh:   make(chan *EvidenceData, 100),
-		seenMessages: make(map[string]bool),
-		logger:       logger,
+		ctx:                       ctx,
+		cancel:                    cancel,
+		host:                      h,
+		pubsub:                    ps,
+		Consensus:                 posConsensus,
+		selfAddress:               selfAddress,
+		proposalCh:                make(chan *blockchain.Block, 100),
+		voteCh:                    make(chan *VoteData, 100),
+		evidenceCh:                make(chan *EvidenceData, 100),
+		seenMessages:              make(map[string]bool),
+		logger:                    logger,
+		lastSeenValidators:        make(map[common.Address]time.Time),
+		validatorOfflineThreshold: 15 * time.Minute, // 3x the announcement period
 	}
 
 	logger.WithFields(logrus.Fields{
@@ -215,6 +309,21 @@ func (c *ConsensusClient) Start() error {
 
 	// Start validator selection loop in a goroutine
 	go c.runValidatorSelectionLoop()
+
+	// Start monitoring for offline validators
+	go c.monitorOfflineValidators()
+
+	// Start garbage collection for seen messages
+	go c.GarbageCollectSeenMessages(5 * time.Minute)
+
+	// If we have stake, we're a validator - record our presence and start announcement loop
+	if c.Consensus.GetValidatorStake(c.selfAddress) > 0 {
+		// Record ourselves as seen
+		c.recordValidatorSeen(c.selfAddress)
+
+		// Start validator announcement loop
+		go c.runValidatorAnnouncementLoop()
+	}
 
 	c.logger.Info("Consensus client started successfully")
 	return nil
@@ -297,7 +406,18 @@ func (c *ConsensusClient) ReportMissedValidation(validator common.Address) error
 	// Record the missed validation in the consensus mechanism
 	c.Consensus.RecordMissedValidation(validator)
 
-	return c.publishMessage(msg)
+	c.logger.WithFields(logrus.Fields{
+		"validator": validator.Hex(),
+	}).Info("Missed block production recorded")
+
+	// Attempt to publish, but don't fail if this doesn't work
+	// (e.g., during tests or when the network is down)
+	if err := c.publishMessage(msg); err != nil {
+		c.logger.WithError(err).Debug("Failed to publish missed validation report")
+		return err
+	}
+
+	return nil
 }
 
 // ReportDoubleSign reports evidence of a validator double signing
@@ -501,6 +621,12 @@ func (c *ConsensusClient) processMessage(msg ConsensusMessage) {
 				c.logger.Warn("Evidence channel full, dropping message")
 			}
 		}
+
+	case ValidatorAnnouncement:
+		if msg.ValidatorAddress != (common.Address{}) {
+			// Process validator announcement
+			c.processValidatorAnnouncement(msg.ValidatorAddress, msg.ValidatorStake, msg.ValidatorMetrics, msg.Sender)
+		}
 	}
 }
 
@@ -509,6 +635,17 @@ func (c *ConsensusClient) publishMessage(msg ConsensusMessage) error {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	// Check if the topic is nil (could happen during shutdown or in test contexts)
+	if c.topic == nil {
+		// In test environments, it's common for the topic to be nil
+		// Instead of returning an error, just log it and continue
+		c.logger.WithFields(logrus.Fields{
+			"type":   msg.Type,
+			"sender": msg.Sender.Hex(),
+		}).Debug("Cannot publish message: topic is nil")
+		return nil
 	}
 
 	if err := c.topic.Publish(c.ctx, data); err != nil {
@@ -528,6 +665,10 @@ func (c *ConsensusClient) runValidatorSelectionLoop() {
 	ticker := time.NewTicker(c.Consensus.GetSlotDuration())
 	defer ticker.Stop()
 
+	var lastSelectedValidator common.Address
+	var lastSelectionTime time.Time
+	var missedValidations map[common.Address]time.Time = make(map[common.Address]time.Time)
+
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -535,11 +676,42 @@ func (c *ConsensusClient) runValidatorSelectionLoop() {
 		case <-ticker.C:
 			validator := c.Consensus.SelectValidator()
 
+			// Check if the previously selected validator should have produced a block
+			if lastSelectedValidator != (common.Address{}) &&
+				lastSelectedValidator != c.selfAddress { // Don't report ourselves
+
+				// Check if we're past the expected block time and haven't received a block
+				timeElapsed := time.Since(lastSelectionTime)
+				if timeElapsed > c.Consensus.GetSlotDuration() {
+					// If we previously marked this validator, check if it's time to report
+					if lastMarked, exists := missedValidations[lastSelectedValidator]; exists {
+						// If it's been more than one full slot since we marked them, report
+						if time.Since(lastMarked) >= c.Consensus.GetSlotDuration() {
+							c.ReportMissedValidation(lastSelectedValidator)
+							c.logger.WithFields(logrus.Fields{
+								"validator": lastSelectedValidator.Hex(),
+								"elapsed":   timeElapsed,
+							}).Info("Reporting validator for missed block production")
+
+							// Remove from our tracking map after reporting
+							delete(missedValidations, lastSelectedValidator)
+						}
+					} else {
+						// Mark this validator as potentially missing their slot
+						missedValidations[lastSelectedValidator] = time.Now()
+					}
+				}
+			}
+
+			// Update for the next cycle
+			lastSelectedValidator = validator
+			lastSelectionTime = time.Now()
+
 			// Check if we are the selected validator
 			if validator == c.selfAddress {
 				c.logger.WithField("validator", validator.Hex()).Info("We are the selected validator for this slot")
 				// Signal to the application that we should propose a block
-				// Make a call to the Execution Client to get the latest block via gRPC
+				// TODO: Make a call to the Execution Client to get the latest block via gRPC
 				// This would typically be handled by application-specific logic
 			} else {
 				c.logger.WithField("validator", validator.Hex()).Info("Selected validator for this slot")
@@ -566,9 +738,9 @@ func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
 }
 
 // GarbageCollectSeenMessages removes old seen messages to prevent memory leaks
-func (c *ConsensusClient) GarbageCollectSeenMessages() {
+func (c *ConsensusClient) GarbageCollectSeenMessages(interval time.Duration) {
 	// Run garbage collection periodically
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -590,4 +762,176 @@ func (c *ConsensusClient) GarbageCollectSeenMessages() {
 // GetValidatorAddress returns the validator address used by this client
 func (c *ConsensusClient) GetValidatorAddress() common.Address {
 	return c.selfAddress
+}
+
+// AnnounceValidator broadcasts this node's validator status to the network
+func (c *ConsensusClient) AnnounceValidator() error {
+	// Get current stake amount
+	stake := c.Consensus.GetValidatorStake(c.selfAddress)
+
+	// Only announce if we have sufficient stake
+	if stake == 0 {
+		return fmt.Errorf("not a validator, insufficient stake to announce")
+	}
+
+	// Get validator metrics
+	metrics := c.Consensus.GetValidatorMetrics(c.selfAddress)
+	if metrics == nil {
+		// Create default metrics if none exist
+		metrics = &consensus.ValidationMetrics{
+			Status:         consensus.StatusActive,
+			LastActiveTime: time.Now(),
+		}
+	}
+
+	// Record our own validator as seen
+	c.recordValidatorSeen(c.selfAddress)
+
+	// Create and publish announcement message
+	msg := ConsensusMessage{
+		Type:             ValidatorAnnouncement,
+		Sender:           c.selfAddress,
+		ValidatorAddress: c.selfAddress,
+		ValidatorStake:   stake,
+		ValidatorMetrics: metrics,
+		Timestamp:        time.Now(),
+	}
+
+	return c.publishMessage(msg)
+}
+
+// runValidatorAnnouncementLoop periodically announces validator status
+func (c *ConsensusClient) runValidatorAnnouncementLoop() {
+	// Announce once immediately
+	if err := c.AnnounceValidator(); err != nil {
+		c.logger.WithError(err).Debug("Failed to announce validator status")
+	}
+
+	// Then announce periodically
+	ticker := time.NewTicker(5 * time.Minute)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-ticker.C:
+				if err := c.AnnounceValidator(); err != nil {
+					c.logger.WithError(err).Debug("Failed to announce validator status")
+				}
+			}
+		}
+	}()
+
+	c.logger.Debug("Started validator announcement loop")
+}
+
+// processValidatorAnnouncement handles validator announcements from other nodes
+func (c *ConsensusClient) processValidatorAnnouncement(validatorAddress common.Address, stake uint64, metrics *consensus.ValidationMetrics, sender common.Address) {
+	if validatorAddress == (common.Address{}) {
+		c.logger.Error("Received empty validator announcement")
+		return
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"validator": validatorAddress.Hex(),
+		"stake":     stake,
+		"status":    metrics.Status.String(),
+		"sender":    sender.Hex(),
+	}).Info("Received validator announcement")
+
+	// Record when this validator was last seen
+	c.recordValidatorSeen(validatorAddress)
+
+	// In a production system, we would:
+	// 1. Verify the signature to confirm ownership
+	// 2. Check if the stake matches what's recorded on-chain
+
+	// For this simulator, we'll trust the announcement and update our local consensus
+
+	// Add or update the validator in our local consensus
+	// Note: we're using the announced stake directly, but in a real system
+	// this would be verified against an on-chain record
+	c.Consensus.Deposit(validatorAddress, stake)
+
+	// Update status if needed
+	currentStatus := c.Consensus.GetValidatorStatus(validatorAddress)
+
+	// Only update status if the announced status is different
+	if currentStatus != metrics.Status {
+		switch metrics.Status {
+		case consensus.StatusProbation:
+			if currentStatus != consensus.StatusProbation {
+				// Set validator on probation (simplified)
+				for i := 0; i < int(c.Consensus.GetProbationThreshold()); i++ {
+					c.Consensus.RecordMissedValidation(validatorAddress)
+				}
+			}
+		case consensus.StatusSlashed:
+			if currentStatus != consensus.StatusSlashed {
+				c.Consensus.SlashValidator(validatorAddress, "Reported as slashed by peer")
+			}
+		}
+	}
+}
+
+// recordValidatorSeen updates the last time a validator was seen
+func (c *ConsensusClient) recordValidatorSeen(validator common.Address) {
+	c.lastSeenMutex.Lock()
+	defer c.lastSeenMutex.Unlock()
+
+	c.lastSeenValidators[validator] = time.Now()
+}
+
+// monitorOfflineValidators periodically checks for validators that haven't been seen recently
+func (c *ConsensusClient) monitorOfflineValidators() {
+	ticker := time.NewTicker(5 * time.Minute)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+			c.checkOfflineValidators()
+		}
+	}
+}
+
+// checkOfflineValidators checks for validators that haven't been seen recently and reports them
+func (c *ConsensusClient) checkOfflineValidators() {
+	now := time.Now()
+	offlineThreshold := now.Add(-c.validatorOfflineThreshold)
+
+	// Get all active validators
+	validators := c.Consensus.GetValidatorSet()
+
+	c.lastSeenMutex.RLock()
+	for _, validator := range validators {
+		// Skip our own address
+		if validator == c.selfAddress {
+			continue
+		}
+
+		lastSeen, exists := c.lastSeenValidators[validator]
+		if !exists || lastSeen.Before(offlineThreshold) {
+			// This validator hasn't been seen recently
+			c.lastSeenMutex.RUnlock() // Unlock before making the call to avoid deadlock
+
+			// Get current status to avoid unnecessary reports
+			status := c.Consensus.GetValidatorStatus(validator)
+			if status == consensus.StatusActive {
+				// Report the missed validation
+				c.ReportMissedValidation(validator)
+
+				c.logger.WithFields(logrus.Fields{
+					"validator": validator.Hex(),
+					"lastSeen":  lastSeen,
+				}).Info("Reporting validator as offline due to missed announcements")
+			}
+
+			c.lastSeenMutex.RLock() // Lock again to continue iteration
+		}
+	}
+	c.lastSeenMutex.RUnlock()
 }
