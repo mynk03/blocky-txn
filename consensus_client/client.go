@@ -208,7 +208,6 @@ func NewConsensusClient(
 	listenAddr string,
 	initialStake uint64,
 	logger *logrus.Logger,
-	harborServiceAddr string,
 ) (*ConsensusClient, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -313,16 +312,25 @@ func NewConsensusClient(
 		validatorOfflineThreshold: 15 * time.Minute, // 3x the announcement period
 	}
 
-	// Set up the Harbor client if an address is provided
-	if harborServiceAddr != "" {
-		harborClient, err := NewHarborClient(harborServiceAddr, logger)
+	// Check for Harbor service address in environment variable first
+	envHarborAddr := os.Getenv("HARBOR_SERVICE_ADDR")
+
+	// Set up the Harbor client if an address is provided (from env or parameter)
+	if envHarborAddr != "" {
+		harborClient, err := NewHarborClient(envHarborAddr, logger)
 		if err != nil {
 			cancel()
 			h.Close()
 			return nil, fmt.Errorf("failed to create Harbor client: %w", err)
 		}
 		client.harborClient = harborClient
-		logger.WithField("address", harborServiceAddr).Info("Connected to execution client via Harbor service")
+
+		// Log the source of the address
+		if envHarborAddr != "" {
+			logger.WithField("address", envHarborAddr).Info("Connected to execution client via Harbor service (from environment variable)")
+		} else {
+			logger.WithField("address", envHarborAddr).Info("Connected to execution client via Harbor service (from parameter)")
+		}
 	} else {
 		logger.Warn("No Harbor service address provided, will operate without execution client integration")
 	}
