@@ -61,6 +61,80 @@ The client provides several network-related features:
 - **Garbage Collection**: Periodically cleans up seen messages to prevent memory leaks
 - **Direct Peer Connection**: Supports connecting to specific peers by address
 
+## Harbor Service API
+
+The Consensus Client now supports communication with the Execution Client via the Harbor Service API (similar to Ethereum's ENGINE API). This provides a standardized interface between the consensus and execution layers, enabling:
+
+1. **Block Creation**: When a consensus node is selected as a validator, it requests the execution client to create a new block from its transaction pool.
+2. **Block Validation**: When a consensus node receives a block proposal, it sends the block to the execution client for validation.
+
+### Setting Up the Connection
+
+When creating a new consensus client, you can provide the address of the Harbor service:
+
+```go
+consensusClient, err := consensus_client.NewConsensusClient(
+    "0.0.0.0:9000", // Listen address for p2p
+    200,            // Initial stake
+    logger,         // Logger
+    "localhost:50051", // Harbor service gRPC address
+)
+```
+
+If the Harbor service address is not provided, the consensus client will operate without execution client integration:
+
+```go
+// Without Harbor service
+consensusClient, err := consensus_client.NewConsensusClient(
+    "0.0.0.0:9000",
+    200,
+    logger,
+    "", // Empty address means no Harbor service
+)
+```
+
+### How It Works
+
+1. **Validator Selection**: The consensus algorithm selects a validator for each slot.
+2. **Block Creation**: If a node is selected as the validator:
+   - It calls `RequestBlockFromExecutionClient()` which uses the Harbor API to request the execution client to create a block.
+   - The execution client creates a block from pending transactions and returns it.
+   - The consensus client broadcasts the block proposal to the network.
+3. **Block Validation**: When a node receives a block proposal:
+   - It calls `ValidateBlockWithExecutionClient()` which uses the Harbor API to validate the block.
+   - The execution client validates the block's structure and transactions.
+   - Based on the validation result, the consensus client votes to approve or reject the block.
+   - If validation fails, it reports the invalid block to the network.
+
+### Protocol Buffers
+
+The Harbor Service API is defined using Protocol Buffers. The proto definition can be found in `proto/harbor/api.proto`. Key messages include:
+
+- `BlockCreationRequest`: Request to create a new block
+- `BlockCreationResponse`: Response containing the newly created block
+- `BlockValidationRequest`: Request to validate a block
+- `ValidationResult`: Result of block validation
+
+The main service defined is `HarborAPI`, which provides methods for block creation and validation.
+
+### Building the Project
+
+The project requires Protocol Buffers and gRPC. To build:
+
+1. Install the protoc compiler: `brew install protobuf` (macOS) or similar for your OS.
+2. Install Go plugins: 
+   ```
+   go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+   go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+   ```
+3. Generate code from proto files:
+   ```
+   protoc --go_out=. --go_opt=paths=source_relative \
+       --go-grpc_out=. --go-grpc_opt=paths=source_relative \
+       proto/harbor/api.proto
+   ```
+4. Build the project: `go build ./...`
+
 ## Usage
 
 ### Creating a Consensus Client
