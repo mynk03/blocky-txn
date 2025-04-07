@@ -3,47 +3,66 @@ package execution_client
 import (
 	"blockchain-simulator/blockchain"
 	"blockchain-simulator/transaction"
-	"blockchain-simulator/validator"
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
-	"github.com/multiformats/go-multiaddr"
+	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
+	"github.com/libp2p/go-libp2p/p2p/security/noise"
+	"github.com/sirupsen/logrus"
 )
 
 const (
-	// Topic for transaction gossiping
-	TransactionTopic = "blockchain-transactions"
+	// ProtocolID is the protocol identifier for our gossip network
+	ProtocolID = "/blockchain-simulator/execution/1.0.0"
+
+	// TopicName is the name of the pubsub topic for consensus messages
+	TopicName = "execution"
+
+	// DiscoveryInterval is how often to look for peers
+	DiscoveryInterval = 1 * time.Minute
 )
 
-// ExecutionClient represents a client in the execution layer
+// ExecutionClient manages the p2p network for consensus algorithms
 type ExecutionClient struct {
-	host      host.Host
-	peers     map[peer.ID]struct{}
-	mu        sync.RWMutex
-	ctx       context.Context
-	cancel    context.CancelFunc
-	stopped   bool
-	txPool    *transaction.TransactionPool
-	ps        *pubsub.PubSub
-	txTopic   *pubsub.Topic
-	txSub     *pubsub.Subscription
-	validator *validator.Validator
-	chain     *blockchain.Blockchain
+	ctx              context.Context
+	cancel           context.CancelFunc
+	host             host.Host
+	pubsub           *pubsub.PubSub
+	topic            *pubsub.Topic
+	subscription     *pubsub.Subscription
+	selfAddress      common.Address
+	discoveryService mdns.Service
+	txPool           *transaction.TransactionPool
+	chain            *blockchain.Blockchain
+
+	// Channels for message handling
+	transactionCh chan *transaction.Transaction
+
+	// For keeping track of seen messages to prevent duplicates
+	seenMessages map[string]bool
+	seenMutex    sync.RWMutex
+
+	logger *logrus.Logger
 }
 
-// NewExecutionClient creates a new execution client instance
-func NewExecutionClient(txPool *transaction.TransactionPool, chain *blockchain.Blockchain, validatorAddr common.Address) (*ExecutionClient, error) {
+// NewExecutionClient creates a new execution client with a randomly generated validator address
+func NewExecutionClient(
+	listenAddr string,
+	txPool *transaction.TransactionPool,
+	chain *blockchain.Blockchain,
+	validatorAddr common.Address,
+	logger *logrus.Logger,
+) (*ExecutionClient, error) {
 	if txPool == nil {
 		return nil, fmt.Errorf("transaction pool cannot be nil")
 	}
@@ -54,142 +73,211 @@ func NewExecutionClient(txPool *transaction.TransactionPool, chain *blockchain.B
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Create a new libp2p host
+	// Initialize a logger if not provided
+	if logger == nil {
+		logger = logrus.New()
+		logger.SetFormatter(&logrus.TextFormatter{
+			FullTimestamp: true,
+		})
+		logger.SetLevel(logrus.InfoLevel)
+	}
+
+	// Generate a new key pair for the host
+	priv, _, err := crypto.GenerateKeyPair(crypto.Secp256k1, 256)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("failed to generate key pair: %w", err)
+	}
+
+	// Create a new libp2p host with security options
 	host, err := libp2p.New(
-		libp2p.ListenAddrStrings("/ip4/127.0.0.1/tcp/0"),
-		libp2p.DisableRelay(),
+		libp2p.ListenAddrStrings(listenAddr),
+		libp2p.Identity(priv),
+		libp2p.Security(noise.ID, noise.New),
 	)
 	if err != nil {
 		cancel()
-		return nil, fmt.Errorf("failed to create libp2p host: %v", err)
+		return nil, fmt.Errorf("failed to create libp2p host: %w", err)
 	}
 
-	// Create a new PubSub service
+	// Create a new GossipSub instance
 	ps, err := pubsub.NewGossipSub(ctx, host)
 	if err != nil {
 		cancel()
 		host.Close()
-		return nil, fmt.Errorf("failed to create pubsub: %v", err)
+		return nil, fmt.Errorf("failed to create gossipsub: %w", err)
 	}
-
-	// Create transaction topic
-	txTopic, err := ps.Join(TransactionTopic)
-	if err != nil {
-		cancel()
-		host.Close()
-		return nil, fmt.Errorf("failed to join transaction topic: %v", err)
-	}
-
-	// Subscribe to transaction topic
-	txSub, err := txTopic.Subscribe()
-	if err != nil {
-		cancel()
-		host.Close()
-		return nil, fmt.Errorf("failed to subscribe to transaction topic: %v", err)
-	}
-
-	// Create validator
-	validator := validator.NewValidator(validatorAddr, txPool, chain)
 
 	client := &ExecutionClient{
-		host:      host,
-		peers:     make(map[peer.ID]struct{}),
-		mu:        sync.RWMutex{},
-		ctx:       ctx,
-		cancel:    cancel,
-		stopped:   false,
-		txPool:    txPool,
-		ps:        ps,
-		txTopic:   txTopic,
-		txSub:     txSub,
-		validator: validator,
-		chain:     chain,
+		ctx:           ctx,
+		cancel:        cancel,
+		host:          host,
+		pubsub:        ps,
+		selfAddress:   validatorAddr,
+		txPool:        txPool,
+		chain:         chain,
+		transactionCh: make(chan *transaction.Transaction, 100),
+		seenMessages:  make(map[string]bool),
+		logger:        logger,
 	}
 
-	// Start the message handler
-	go client.handleTransactionMessages()
+	logger.WithFields(logrus.Fields{
+		"peerID":    host.ID().String(),
+		"addrs":     host.Addrs(),
+		"validator": validatorAddr.Hex(),
+	}).Info("Created new execution client")
 
 	return client, nil
 }
 
-// handleTransactionMessages handles incoming transaction messages from the pubsub topic
-func (c *ExecutionClient) handleTransactionMessages() {
-	for {
-		msg, err := c.txSub.Next(c.ctx)
-		if err != nil {
-			if err == context.Canceled {
-				return
-			}
-			log.Printf("Error reading transaction message: %v", err)
-			continue
-		}
+// Start initializes and starts the execution client
+func (c *ExecutionClient) Start() error {
+	// Join the pubsub topic
+	var err error
+	c.topic, err = c.pubsub.Join(TopicName)
+	if err != nil {
+		return fmt.Errorf("failed to join topic: %w", err)
+	}
 
-		// Only process messages from other peers
-		if msg.ReceivedFrom == c.host.ID() {
-			continue
-		}
+	// Subscribe to the topic
+	c.subscription, err = c.topic.Subscribe()
+	if err != nil {
+		return fmt.Errorf("failed to subscribe to topic: %w", err)
+	}
 
-		var tx transaction.Transaction
-		if err := json.Unmarshal(msg.Data, &tx); err != nil {
-			log.Printf("Failed to unmarshal transaction: %v", err)
-			continue
-		}
+	// Setup mDNS discovery
+	c.discoveryService = mdns.NewMdnsService(c.host, ProtocolID, &discoveryNotifee{c: c})
+	if err := c.discoveryService.Start(); err != nil {
+		return fmt.Errorf("failed to start discovery service: %w", err)
+	}
 
-		// Add transaction to validator
-		if err := c.validator.AddTransaction(tx); err != nil {
-			log.Printf("Failed to add transaction to validator: %v", err)
-			continue
+	// Start message handling goroutine
+	go c.handleTransactions()
+
+	c.logger.Info("Execution client started successfully")
+	return nil
+}
+
+// Stop gracefully shuts down the execution client
+func (c *ExecutionClient) Stop() error {
+	c.logger.Info("Stopping execution client")
+
+	if c.subscription != nil {
+		c.subscription.Cancel()
+	}
+
+	if c.topic != nil {
+		c.topic.Close()
+	}
+
+	// mDNS discovery service will stop when the context is cancelled
+	c.cancel()
+
+	if c.host != nil {
+		if err := c.host.Close(); err != nil {
+			return fmt.Errorf("failed to close host: %w", err)
 		}
 	}
+
+	close(c.transactionCh)
+
+	return nil
 }
 
-// CreateBlock creates a new block using the validator
-func (c *ExecutionClient) CreateBlock() blockchain.Block {
-	return c.validator.CreateNewBlock()
-}
-
-// BroadcastTransaction broadcasts a transaction to all connected peers
+// BroadcastTransaction broadcasts a transaction to the network
 func (c *ExecutionClient) BroadcastTransaction(tx transaction.Transaction) error {
-	c.mu.RLock()
-	if c.stopped {
-		c.mu.RUnlock()
-		return fmt.Errorf("client is stopped")
-	}
-	c.mu.RUnlock()
-
-	// Add transaction to validator first
-	if err := c.validator.AddTransaction(tx); err != nil {
-		return fmt.Errorf("invalid transaction: %w", err)
+	// Add transaction to local pool first
+	if err := c.txPool.AddTransaction(tx); err != nil {
+		return fmt.Errorf("failed to add transaction to pool: %w", err)
 	}
 
-	// Marshal transaction
+	// Publish transaction to network
 	data, err := json.Marshal(tx)
 	if err != nil {
 		return fmt.Errorf("failed to marshal transaction: %w", err)
 	}
 
-	// Publish transaction to the topic
-	if err := c.txTopic.Publish(c.ctx, data); err != nil {
+	if err := c.topic.Publish(c.ctx, data); err != nil {
 		return fmt.Errorf("failed to publish transaction: %w", err)
 	}
+
+	c.logger.WithFields(logrus.Fields{
+		"hash":     tx.TransactionHash,
+		"sender":   tx.Sender.Hex(),
+		"receiver": tx.Receiver.Hex(),
+		"amount":   tx.Amount,
+	}).Info("Broadcasted transaction")
 
 	return nil
 }
 
-// Stop stops the execution client
-func (c *ExecutionClient) Stop() {
-	c.mu.Lock()
-	if c.stopped {
-		c.mu.Unlock()
-		return
-	}
-	c.stopped = true
-	c.mu.Unlock()
+// handleTransactions processes incoming transactions from the subscription
+func (c *ExecutionClient) handleTransactions() {
+	for {
+		msg, err := c.subscription.Next(c.ctx)
+		if err != nil {
+			if c.ctx.Err() != nil {
+				// Context was canceled, client is shutting down
+				return
+			}
+			c.logger.WithError(err).Error("Error receiving message from subscription")
+			continue
+		}
 
-	c.cancel()
-	c.txSub.Cancel()
-	c.txTopic.Close()
-	c.host.Close()
+		// Skip messages from ourselves
+		if msg.ReceivedFrom == c.host.ID() {
+			continue
+		}
+
+		// Deserialize the transaction
+		var tx transaction.Transaction
+		if err := json.Unmarshal(msg.Data, &tx); err != nil {
+			c.logger.WithError(err).Error("Failed to unmarshal transaction")
+			continue
+		}
+
+		// Check if we've seen this transaction before
+		c.seenMutex.RLock()
+		seen := c.seenMessages[tx.TransactionHash]
+		c.seenMutex.RUnlock()
+
+		if seen {
+			continue
+		}
+
+		// Mark transaction as seen
+		c.seenMutex.Lock()
+		c.seenMessages[tx.TransactionHash] = true
+		c.seenMutex.Unlock()
+
+		// Add transaction to pool
+		if err := c.txPool.AddTransaction(tx); err != nil {
+			c.logger.WithError(err).Error("Failed to add transaction to pool")
+			continue
+		}
+
+		// Forward transaction to application
+		select {
+		case c.transactionCh <- &tx:
+		default:
+			c.logger.Warn("Transaction channel full, dropping message")
+		}
+	}
+}
+
+// ConnectToPeer establishes a connection to a peer
+func (c *ExecutionClient) ConnectToPeer(peerAddr string) error {
+	peerInfo, err := peer.AddrInfoFromString(peerAddr)
+	if err != nil {
+		return fmt.Errorf("invalid peer address: %w", err)
+	}
+
+	if err := c.host.Connect(c.ctx, *peerInfo); err != nil {
+		return fmt.Errorf("failed to connect to peer: %w", err)
+	}
+
+	c.logger.WithField("peer", peerAddr).Info("Connected to peer")
+	return nil
 }
 
 // GetAddress returns the multiaddress of the execution client
@@ -199,79 +287,44 @@ func (c *ExecutionClient) GetAddress() string {
 
 // GetPeers returns the list of connected peer addresses
 func (c *ExecutionClient) GetPeers() []string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
+	peers := c.host.Network().Peers()
+	peerAddrs := make([]string, 0, len(peers))
 
-	peers := make([]string, 0, len(c.peers))
-	for peerID := range c.peers {
+	for _, peerID := range peers {
 		if c.host.Network().Connectedness(peerID) == network.Connected {
 			peerInfo := c.host.Peerstore().PeerInfo(peerID)
 			if len(peerInfo.Addrs) > 0 {
-				peers = append(peers, peerInfo.Addrs[0].String()+"/p2p/"+peerID.String())
+				peerAddrs = append(peerAddrs, peerInfo.Addrs[0].String()+"/p2p/"+peerID.String())
 			}
 		}
 	}
-	return peers
+
+	return peerAddrs
 }
 
 // IsConnectedTo checks if the client is connected to a specific peer
 func (c *ExecutionClient) IsConnectedTo(addr string) bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	targetAddr, err := multiaddr.NewMultiaddr(addr)
+	peerInfo, err := peer.AddrInfoFromString(addr)
 	if err != nil {
 		return false
 	}
 
-	targetInfo, err := peer.AddrInfoFromP2pAddr(targetAddr)
-	if err != nil {
-		return false
-	}
-
-	_, exists := c.peers[targetInfo.ID]
-	return exists && c.host.Network().Connectedness(targetInfo.ID) == network.Connected
+	return c.host.Network().Connectedness(peerInfo.ID) == network.Connected
 }
 
-// ConnectToPeer connects to another execution client
-func (c *ExecutionClient) ConnectToPeer(addr string) error {
-	c.mu.RLock()
-	if c.stopped {
-		c.mu.RUnlock()
-		return fmt.Errorf("client is stopped")
-	}
-	c.mu.RUnlock()
-
-	targetAddr, err := multiaddr.NewMultiaddr(addr)
-	if err != nil {
-		return fmt.Errorf("invalid address: %w", err)
-	}
-
-	targetInfo, err := peer.AddrInfoFromP2pAddr(targetAddr)
-	if err != nil {
-		return fmt.Errorf("invalid peer address: %w", err)
-	}
-
-	c.host.Peerstore().AddAddrs(targetInfo.ID, targetInfo.Addrs, peerstore.PermanentAddrTTL)
-
-	if err := c.host.Connect(c.ctx, *targetInfo); err != nil {
-		return fmt.Errorf("failed to connect to peer: %w", err)
-	}
-
-	time.Sleep(50 * time.Millisecond)
-
-	if c.host.Network().Connectedness(targetInfo.ID) != network.Connected {
-		return fmt.Errorf("connection not established with peer")
-	}
-
-	c.mu.Lock()
-	c.peers[targetInfo.ID] = struct{}{}
-	c.mu.Unlock()
-
-	return nil
+// discoveryNotifee is a struct for handling peer discovery notifications
+type discoveryNotifee struct {
+	c *ExecutionClient
 }
 
-// GetPeerID returns the node's own peer ID
-func (c *ExecutionClient) GetPeerID() string {
-	return c.host.ID().String()
+// HandlePeerFound is called when a new peer is discovered
+func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
+	n.c.logger.WithFields(logrus.Fields{
+		"peerID": pi.ID.String(),
+		"addrs":  pi.Addrs,
+	}).Info("Discovered new peer")
+
+	if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
+		n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
+	}
 }
