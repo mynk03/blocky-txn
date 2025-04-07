@@ -59,6 +59,8 @@ func (v *Validator) CreateNewBlock() blockchain.Block {
 	// Update the state root
 	newBlock.StateRoot = v.LocalChain.StateTrie.RootHash()
 
+	newBlock.Hash = blockchain.CalculateBlockHash(newBlock)
+
 	return newBlock
 }
 
