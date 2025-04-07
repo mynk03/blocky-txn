@@ -196,6 +196,10 @@ type ConsensusClient struct {
 	// logger provides structured logging for the client
 	// Records important events, errors, and debugging information
 	logger *logrus.Logger
+
+	// harborClient is the client for communicating with the execution client via the Harbor API
+	// Responsible for requesting block creation and validation
+	harborClient *HarborClient
 }
 
 // NewConsensusClient creates a new consensus client with a validator address derived from
@@ -204,6 +208,7 @@ func NewConsensusClient(
 	listenAddr string,
 	initialStake uint64,
 	logger *logrus.Logger,
+	harborServiceAddr string,
 ) (*ConsensusClient, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -291,6 +296,7 @@ func NewConsensusClient(
 		return nil, fmt.Errorf("failed to create gossipsub: %w", err)
 	}
 
+	// Create the consensus client
 	client := &ConsensusClient{
 		ctx:                       ctx,
 		cancel:                    cancel,
@@ -305,6 +311,20 @@ func NewConsensusClient(
 		logger:                    logger,
 		lastSeenValidators:        make(map[common.Address]time.Time),
 		validatorOfflineThreshold: 15 * time.Minute, // 3x the announcement period
+	}
+
+	// Set up the Harbor client if an address is provided
+	if harborServiceAddr != "" {
+		harborClient, err := NewHarborClient(harborServiceAddr, logger)
+		if err != nil {
+			cancel()
+			h.Close()
+			return nil, fmt.Errorf("failed to create Harbor client: %w", err)
+		}
+		client.harborClient = harborClient
+		logger.WithField("address", harborServiceAddr).Info("Connected to execution client via Harbor service")
+	} else {
+		logger.Warn("No Harbor service address provided, will operate without execution client integration")
 	}
 
 	logger.WithFields(logrus.Fields{
@@ -374,8 +394,14 @@ func (c *ConsensusClient) Stop() error {
 		c.topic.Close()
 	}
 
-	// mDNS discovery service will stop when the context is cancelled
+	// Close harbor client connection if it exists
+	if c.harborClient != nil {
+		if err := c.harborClient.Close(); err != nil {
+			c.logger.WithError(err).Warn("Failed to close Harbor client connection")
+		}
+	}
 
+	// mDNS discovery service will stop when the context is cancelled
 	c.cancel()
 
 	if c.host != nil {
@@ -603,6 +629,38 @@ func (c *ConsensusClient) processMessage(msg ConsensusMessage) {
 			// Record block production for the validator
 			c.Consensus.RecordBlockProduction(msg.Sender)
 
+			// Validate the block with the execution client if available
+			if c.harborClient != nil {
+				go func() {
+					valid, err := c.ValidateBlockWithExecutionClient(msg.BlockData)
+					if err != nil {
+						c.logger.WithError(err).Error("Failed to validate block with execution client")
+						return
+					}
+
+					// Vote on the block based on validation result
+					if valid {
+						c.logger.WithField("blockHash", msg.BlockData.Hash).Info("Block validation successful, voting to approve")
+						if err := c.SubmitVote(msg.BlockData.Hash, true); err != nil {
+							c.logger.WithError(err).Error("Failed to submit approval vote")
+						}
+					} else {
+						c.logger.WithField("blockHash", msg.BlockData.Hash).Warn("Block validation failed, voting to reject")
+						if err := c.SubmitVote(msg.BlockData.Hash, false); err != nil {
+							c.logger.WithError(err).Error("Failed to submit rejection vote")
+						}
+
+						// Report the invalid block if validation failed
+						reason := "Block failed validation by execution client"
+						if err := c.ReportInvalidBlock(msg.Sender, msg.BlockData.Hash, reason); err != nil {
+							c.logger.WithError(err).Error("Failed to report invalid block")
+						}
+					}
+				}()
+			} else {
+				c.logger.Warn("No execution client available to validate block, skipping validation")
+			}
+
 			// Forward to the block proposal channel
 			select {
 			case c.proposalCh <- msg.BlockData:
@@ -743,9 +801,31 @@ func (c *ConsensusClient) runValidatorSelectionLoop() {
 			// Check if we are the selected validator
 			if validator == c.selfAddress {
 				c.logger.WithField("validator", validator.Hex()).Info("We are the selected validator for this slot")
-				// Signal to the application that we should propose a block
-				// TODO: Make a call to the Execution Client to get the latest block via gRPC
-				// This would typically be handled by application-specific logic
+
+				// Request a block from the execution client
+				if c.harborClient != nil {
+					go func() {
+						block, err := c.RequestBlockFromExecutionClient()
+						if err != nil {
+							c.logger.WithError(err).Error("Failed to get block from execution client")
+							return
+						}
+
+						// Propose the block to the network
+						if err := c.ProposeBlock(block); err != nil {
+							c.logger.WithError(err).Error("Failed to propose block")
+							return
+						}
+
+						c.logger.WithFields(logrus.Fields{
+							"blockHash":  block.Hash,
+							"blockIndex": block.Index,
+							"txCount":    len(block.Transactions),
+						}).Info("Successfully proposed block to the network")
+					}()
+				} else {
+					c.logger.Warn("No execution client available to create block")
+				}
 			} else {
 				c.logger.WithField("validator", validator.Hex()).Info("Selected validator for this slot")
 			}
@@ -967,4 +1047,63 @@ func (c *ConsensusClient) checkOfflineValidators() {
 		}
 	}
 	c.lastSeenMutex.RUnlock()
+}
+
+// RequestBlockFromExecutionClient requests the execution client to create a new block
+// from its transaction pool when this node is selected as the validator
+func (c *ConsensusClient) RequestBlockFromExecutionClient() (*blockchain.Block, error) {
+	// Check if we have a harbor client
+	if c.harborClient == nil {
+		return nil, fmt.Errorf("no Harbor client available")
+	}
+
+	c.logger.Info("Requesting block creation via Harbor API")
+
+	// Get the last block hash to build upon (if any)
+	var prevBlockHash string
+	// In a real implementation, you would store and track the latest blocks
+	// This is a simplified implementation
+
+	// Request block creation with a maximum of 100 transactions
+	// In a real implementation, you might want to configure this
+	maxTransactions := uint32(100)
+
+	block, err := c.harborClient.RequestBlockCreation(c.ctx, c.selfAddress, prevBlockHash, maxTransactions)
+	if err != nil {
+		return nil, fmt.Errorf("failed to request block via Harbor API: %w", err)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"blockHash":  block.Hash,
+		"blockIndex": block.Index,
+		"txCount":    len(block.Transactions),
+	}).Info("Successfully received block from execution client")
+
+	return block, nil
+}
+
+// ValidateBlockWithExecutionClient sends a block to the execution client for validation
+func (c *ConsensusClient) ValidateBlockWithExecutionClient(block *blockchain.Block) (bool, error) {
+	// Check if we have a harbor client
+	if c.harborClient == nil {
+		return false, fmt.Errorf("no Harbor client available")
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"blockHash":  block.Hash,
+		"blockIndex": block.Index,
+	}).Info("Sending block to execution client for validation via Harbor API")
+
+	valid, err := c.harborClient.ValidateBlock(c.ctx, block)
+	if err != nil {
+		return false, fmt.Errorf("failed to validate block via Harbor API: %w", err)
+	}
+
+	if !valid {
+		c.logger.WithField("blockHash", block.Hash).Warn("Block validation failed at execution client")
+		return false, nil
+	}
+
+	c.logger.WithField("blockHash", block.Hash).Info("Block successfully validated by execution client")
+	return true, nil
 }
