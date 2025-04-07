@@ -65,16 +65,46 @@ The client provides several network-related features:
 
 ### Creating a Consensus Client
 
+You can create a consensus client with either a predefined validator private key (recommended for production) or let the system generate a random address (useful for testing):
+
+#### Option 1: Using a Private Key from Environment Variable
+
+Set the `VALIDATOR_PRIVATE_KEY` environment variable with your hex-encoded private key before running your application:
+
+```bash
+# Linux/macOS
+export VALIDATOR_PRIVATE_KEY=0xabc123...
+
+# Windows
+set VALIDATOR_PRIVATE_KEY=0xabc123...
+```
+
+Then create the client normally:
+
 ```go
-// Create a new consensus client with a randomly generated validator address
-// listenAddr: The network address to listen on (e.g., "/ip4/127.0.0.1/tcp/9000")
-// initialStake: Amount of tokens to stake for this validator
-// logger: Optional logger instance (will create one if nil)
+// The client will use the private key from the environment variable
+// to derive the validator address
 client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9000", 200, nil)
 if err != nil {
     log.Fatalf("Failed to create consensus client: %v", err)
 }
+```
 
+#### Option 2: Using a Random Validator Address
+
+If no `VALIDATOR_PRIVATE_KEY` environment variable is set, a random address will be generated:
+
+```go
+// Without a private key in the environment, a random address will be generated
+client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9000", 200, nil)
+if err != nil {
+    log.Fatalf("Failed to create consensus client: %v", err)
+}
+```
+
+#### Starting and Stopping the Client
+
+```go
 // Start the client (initializes pubsub, peer discovery, etc.)
 err = client.Start()
 if err != nil {
@@ -203,6 +233,7 @@ go test -short
 ## Dependencies
 
 - github.com/ethereum/go-ethereum/common
+- github.com/ethereum/go-ethereum/crypto
 - github.com/libp2p/go-libp2p
 - github.com/libp2p/go-libp2p-pubsub
 - github.com/libp2p/go-libp2p/core/host
