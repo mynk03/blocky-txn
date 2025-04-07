@@ -203,3 +203,13 @@ func (pos *ProofOfStake) GetValidatorSet() []common.Address {
 func (pos *ProofOfStake) GetSlotDuration() time.Duration {
 	return pos.slotDuration
 }
+
+// GetProbationThreshold returns the threshold for putting a validator on probation
+func (pos *ProofOfStake) GetProbationThreshold() uint64 {
+	return pos.probationThreshold
+}
+
+// GetSlashThreshold returns the threshold for slashing a validator
+func (pos *ProofOfStake) GetSlashThreshold() uint64 {
+	return pos.slashThreshold
+}

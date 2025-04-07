@@ -59,4 +59,10 @@ type ConsensusAlgorithm interface {
 
 	// GetValidatorMetrics returns the performance metrics for a validator
 	GetValidatorMetrics(validator common.Address) *ValidationMetrics
+
+	// GetProbationThreshold returns the threshold for putting a validator on probation
+	GetProbationThreshold() uint64
+
+	// GetSlashThreshold returns the threshold for slashing a validator
+	GetSlashThreshold() uint64
 }
