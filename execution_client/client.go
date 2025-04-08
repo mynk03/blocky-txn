@@ -17,7 +17,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
-	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	"github.com/sirupsen/logrus"
 )
 
@@ -44,6 +43,8 @@ type ExecutionClient struct {
 	discoveryService mdns.Service
 	txPool           *transaction.TransactionPool
 	chain            *blockchain.Blockchain
+	harborServer     *HarborServer
+	httpServer       *Server
 
 	// Channels for message handling
 	transactionCh chan *transaction.Transaction
@@ -89,11 +90,10 @@ func NewExecutionClient(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	// Create a new libp2p host with security options
+	// Create a new libp2p host
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings(listenAddr),
 		libp2p.Identity(priv),
-		libp2p.Security(noise.ID, noise.New),
 	)
 	if err != nil {
 		cancel()
@@ -120,6 +120,10 @@ func NewExecutionClient(
 		seenMessages:  make(map[string]bool),
 		logger:        logger,
 	}
+
+	// Initialize both servers
+	client.harborServer = NewHarborServer(txPool, chain, logger)
+	client.httpServer = NewServer(client)
 
 	logger.WithFields(logrus.Fields{
 		"peerID":    host.ID().String(),
@@ -154,6 +158,20 @@ func (c *ExecutionClient) Start() error {
 	// Start message handling goroutine
 	go c.handleTransactions()
 
+	// Start HTTP server for user interactions
+	go func() {
+		if err := c.httpServer.Start(":8080"); err != nil {
+			c.logger.WithError(err).Error("Failed to start HTTP server")
+		}
+	}()
+
+	// Start Harbor RPC server for consensus client
+	go func() {
+		if err := c.harborServer.StartServer("50051"); err != nil {
+			c.logger.WithError(err).Error("Failed to start Harbor RPC server")
+		}
+	}()
+
 	c.logger.Info("Execution client started successfully")
 	return nil
 }
@@ -180,33 +198,6 @@ func (c *ExecutionClient) Stop() error {
 	}
 
 	close(c.transactionCh)
-
-	return nil
-}
-
-// BroadcastTransaction broadcasts a transaction to the network
-func (c *ExecutionClient) BroadcastTransaction(tx transaction.Transaction) error {
-	// Add transaction to local pool first
-	if err := c.txPool.AddTransaction(tx); err != nil {
-		return fmt.Errorf("failed to add transaction to pool: %w", err)
-	}
-
-	// Publish transaction to network
-	data, err := json.Marshal(tx)
-	if err != nil {
-		return fmt.Errorf("failed to marshal transaction: %w", err)
-	}
-
-	if err := c.topic.Publish(c.ctx, data); err != nil {
-		return fmt.Errorf("failed to publish transaction: %w", err)
-	}
-
-	c.logger.WithFields(logrus.Fields{
-		"hash":     tx.TransactionHash,
-		"sender":   tx.Sender.Hex(),
-		"receiver": tx.Receiver.Hex(),
-		"amount":   tx.Amount,
-	}).Info("Broadcasted transaction")
 
 	return nil
 }
@@ -265,19 +256,21 @@ func (c *ExecutionClient) handleTransactions() {
 	}
 }
 
-// ConnectToPeer establishes a connection to a peer
-func (c *ExecutionClient) ConnectToPeer(peerAddr string) error {
-	peerInfo, err := peer.AddrInfoFromString(peerAddr)
-	if err != nil {
-		return fmt.Errorf("invalid peer address: %w", err)
-	}
+// discoveryNotifee is a struct for handling peer discovery notifications
+type discoveryNotifee struct {
+	c *ExecutionClient
+}
 
-	if err := c.host.Connect(c.ctx, *peerInfo); err != nil {
-		return fmt.Errorf("failed to connect to peer: %w", err)
-	}
+// HandlePeerFound is called when a new peer is discovered
+func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
+	n.c.logger.WithFields(logrus.Fields{
+		"peerID": pi.ID.String(),
+		"addrs":  pi.Addrs,
+	}).Info("Discovered new peer")
 
-	c.logger.WithField("peer", peerAddr).Info("Connected to peer")
-	return nil
+	if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
+		n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
+	}
 }
 
 // GetAddress returns the multiaddress of the execution client
@@ -302,6 +295,48 @@ func (c *ExecutionClient) GetPeers() []string {
 	return peerAddrs
 }
 
+// ConnectToPeer establishes a connection to a peer
+func (c *ExecutionClient) ConnectToPeer(peerAddr string) error {
+	peerInfo, err := peer.AddrInfoFromString(peerAddr)
+	if err != nil {
+		return fmt.Errorf("invalid peer address: %w", err)
+	}
+
+	if err := c.host.Connect(c.ctx, *peerInfo); err != nil {
+		return fmt.Errorf("failed to connect to peer: %w", err)
+	}
+
+	c.logger.WithField("peer", peerAddr).Info("Connected to peer")
+	return nil
+}
+
+// BroadcastTransaction broadcasts a transaction to the network
+func (c *ExecutionClient) BroadcastTransaction(tx transaction.Transaction) error {
+	// Add transaction to local pool first
+	if err := c.txPool.AddTransaction(tx); err != nil {
+		return fmt.Errorf("failed to add transaction to pool: %w", err)
+	}
+
+	// Publish transaction to network
+	data, err := json.Marshal(tx)
+	if err != nil {
+		return fmt.Errorf("failed to marshal transaction: %w", err)
+	}
+
+	if err := c.topic.Publish(c.ctx, data); err != nil {
+		return fmt.Errorf("failed to publish transaction: %w", err)
+	}
+
+	c.logger.WithFields(logrus.Fields{
+		"hash":     tx.TransactionHash,
+		"sender":   tx.Sender.Hex(),
+		"receiver": tx.Receiver.Hex(),
+		"amount":   tx.Amount,
+	}).Info("Broadcasted transaction")
+
+	return nil
+}
+
 // IsConnectedTo checks if the client is connected to a specific peer
 func (c *ExecutionClient) IsConnectedTo(addr string) bool {
 	peerInfo, err := peer.AddrInfoFromString(addr)
@@ -310,21 +345,4 @@ func (c *ExecutionClient) IsConnectedTo(addr string) bool {
 	}
 
 	return c.host.Network().Connectedness(peerInfo.ID) == network.Connected
-}
-
-// discoveryNotifee is a struct for handling peer discovery notifications
-type discoveryNotifee struct {
-	c *ExecutionClient
-}
-
-// HandlePeerFound is called when a new peer is discovered
-func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
-	n.c.logger.WithFields(logrus.Fields{
-		"peerID": pi.ID.String(),
-		"addrs":  pi.Addrs,
-	}).Info("Discovered new peer")
-
-	if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
-		n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
-	}
 }
