@@ -9,6 +9,7 @@ import (
 	"blockchain-simulator/transactions"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 // mockHarborAPIClient implements harbor.HarborAPIClient for testing
@@ -269,7 +271,70 @@ func TestNewHarborClient(t *testing.T) {
 	// Test nil connection close
 	err := client.Close()
 	assert.NoError(t, err, "Close should not return an error with nil connection")
+
+	// Test type compatibility
+	mockServer := &mockHarborAPIServer{}
+	result, err := mockServer.ValidateBlock(context.Background(), &harbor.BlockValidationRequest{})
+	assert.NoError(t, err)
+	assert.True(t, result.Valid)
 }
 
 // Variables to override for testing
 var grpcDial = grpc.Dial
+
+// mockHarborAPIServer implements the harbor.HarborAPIServer interface for testing
+type mockHarborAPIServer struct {
+	harbor.UnimplementedHarborAPIServer
+}
+
+// CreateBlock implements the CreateBlock method for the HarborAPIServer interface
+func (m *mockHarborAPIServer) CreateBlock(ctx context.Context, req *harbor.BlockCreationRequest) (*harbor.BlockCreationResponse, error) {
+	return &harbor.BlockCreationResponse{
+		Block: &harbor.BlockData{
+			Index:     1,
+			Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
+			Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
+			Transactions: []*harbor.TransactionData{
+				{
+					From:   "0x1111111111111111111111111111111111111111",
+					To:     "0x2222222222222222222222222222222222222222",
+					Amount: 100,
+				},
+			},
+		},
+	}, nil
+}
+
+// ValidateBlock implements the ValidateBlock method for the HarborAPIServer interface
+func (m *mockHarborAPIServer) ValidateBlock(ctx context.Context, req *harbor.BlockValidationRequest) (*harbor.ValidationResult, error) {
+	return &harbor.ValidationResult{
+		Valid: true,
+	}, nil
+}
+
+// TestHarborClient_Close tests the Close method
+func TestHarborClient_Close(t *testing.T) {
+	t.Run("close nil connection", func(t *testing.T) {
+		client := &HarborClient{
+			conn: nil,
+		}
+		err := client.Close()
+		assert.NoError(t, err)
+	})
+
+	t.Run("close with connection error", func(t *testing.T) {
+		// Create a mock connection that returns an error on close
+		conn, err := grpc.DialContext(
+			context.Background(),
+			"localhost:0", // Use a port that should be available but won't connect
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		assert.NoError(t, err)
+
+		client := &HarborClient{
+			conn: conn,
+		}
+		err = client.Close()
+		assert.NoError(t, err)
+	})
+}
