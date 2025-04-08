@@ -23,39 +23,6 @@ func TestStateRootTestSuite(t *testing.T) {
 	suite.Run(t, new(StateRootTestSuite))
 }
 
-func (suite *StateRootTestSuite) TestProcessBlockWithMissingAccounts() {
-
-	suite.trie.PutAccount(common.HexToAddress("0x0000000000000000000000000000000000000100"), &state.Account{Balance: 1000, Nonce: 0})
-	// Create a test block with a transaction
-	block := Block{
-		Index: 1,
-		Transactions: []transaction.Transaction{
-			{
-				Sender:   common.HexToAddress("0x1234567890123456789012345678901234567890"),
-				Receiver: common.HexToAddress("0x0987654321098765432109876543210987654321"),
-				Amount:   100,
-			},
-			{
-				Sender:   common.HexToAddress("0x0000000000000000000000000000000000000100"),
-				Receiver: common.HexToAddress("0x0987654321098765432109876543210987654321"),
-				Amount:   100,
-			},
-		},
-	}
-
-	// Capture logrus output
-	var logOutput []byte
-	logrus.SetOutput(&logCapture{output: &logOutput})
-
-	// Process the block - this should trigger error logs
-	ProcessBlock(block, suite.trie)
-
-	// Verify that error logs were generated
-	logString := string(logOutput)
-	suite.Contains(logString, "Error in Retreiving sender account")
-	suite.Contains(logString, "Error in Retreiving receiver account")
-}
-
 // logCapture implements io.Writer to capture logrus output
 type logCapture struct {
 	output *[]byte

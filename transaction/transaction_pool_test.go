@@ -401,7 +401,7 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 	)
 	valid, err = txInvalidSender.ValidateWithState(stateTrie)
 	suite.False(valid)
-	suite.Equal(ErrInvalidSender, err)
+	suite.Equal(ErrInsufficientFunds, err)
 }
 
 func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/nspcc-dev/neo-go/pkg/core/mpt"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -46,8 +45,11 @@ func (suite *MptTrieTestSuite) TestPutAndGetAccount() {
 func (suite *MptTrieTestSuite) TestGetNonExistentAccount() {
 	address := common.HexToAddress(user2)
 	account, err := suite.trie.GetAccount(address)
-	suite.EqualError(err, mpt.ErrNotFound.Error())
-	suite.Nil(account)
+
+	// if not exist create a new account with balance 0 and nonce 0
+	suite.NoError(err)
+	suite.Equal(account.Balance, uint64(0))
+	suite.Equal(account.Nonce, uint64(0))
 }
 
 func (suite *MptTrieTestSuite) TestMultipleAccounts() {
@@ -251,6 +253,7 @@ func (suite *MptTrieTestSuite) TestGetAccountError() {
 	// Test with invalid address (empty address)
 	address := common.Address{}
 	account, err := suite.trie.GetAccount(address)
-	suite.Error(err)
-	suite.Nil(account)
+	suite.NoError(err)
+	suite.Equal(account.Balance, uint64(0))
+	suite.Equal(account.Nonce, uint64(0))
 }
