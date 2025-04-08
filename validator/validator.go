@@ -84,6 +84,8 @@ func (v *Validator) ValidateBlock(block blockchain.Block) bool {
 		}).Error("Block state root validation failed")
 		return false
 	} else {
+		blockchain.ProcessBlock(block, v.LocalChain.StateTrie)
+		v.LocalChain.AddBlock(block)
 		return true
 	}
 }
