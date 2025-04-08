@@ -1834,18 +1834,19 @@ func (m *mockConsensusAlgorithm) CalculateValidatorReward(addr common.Address) u
 	return args.Get(0).(uint64)
 }
 
-// TestProcessMessage tests the processMessage function with different message types
+// TestProcessMessage tests the ability to process different types of consensus messages
 func TestProcessMessage(t *testing.T) {
-	logger := logrus.New()
-	logger.SetLevel(logrus.DebugLevel)
+	logger, _ := test.NewNullLogger()
 
-	proposalCh := make(chan *blockchain.Block, 1)
-	voteCh := make(chan *VoteData, 1)
-	evidenceCh := make(chan *EvidenceData, 1)
+	// Set up channels that the client will push messages to
+	proposalCh := make(chan *blockchain.Block, 10)
+	voteCh := make(chan *VoteData, 10)
+	evidenceCh := make(chan *EvidenceData, 10)
 
-	// Create a mock consensus algorithm
+	// Set up the mock consensus algorithm
 	mockConsensus := new(mockConsensusAlgorithm)
 
+	// Create a client with our test channels
 	client := &ConsensusClient{
 		selfAddress:        common.HexToAddress("0x1111111111111111111111111111111111111111"),
 		logger:             logger,
@@ -1855,6 +1856,7 @@ func TestProcessMessage(t *testing.T) {
 		seenMessages:       make(map[string]bool),
 		Consensus:          mockConsensus, // Set the consensus
 		lastSeenValidators: make(map[common.Address]time.Time),
+		voteTracker:        NewVoteTracker(), // Initialize the voteTracker
 	}
 
 	// Test BlockProposal
@@ -1988,12 +1990,6 @@ func TestProcessMessage(t *testing.T) {
 
 	// Verify all mock expectations were met
 	mockConsensus.AssertExpectations(t)
-}
-
-// TestProcessMessage_ValidatorAnnouncement tests the validator announcement message processing in isolation
-// This is separated from TestProcessMessage to handle the more complex mock setup
-func TestProcessMessage_ValidatorAnnouncement(t *testing.T) {
-	t.Skip("Skipping this test as it requires more complex setup")
 }
 
 // TestConnectToPeer tests the ConnectToPeer method
