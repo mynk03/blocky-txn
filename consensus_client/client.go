@@ -124,6 +124,113 @@ type EvidenceData struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// VoteTracker tracks validator voting behavior to identify misbehaving validators
+type VoteTracker struct {
+	// votes maps block hashes to validator votes
+	// blockHash -> validator address -> approve (true/false)
+	votes map[string]map[common.Address]bool
+
+	// localValidations stores the local node's validation result for each block
+	// blockHash -> validation result (true=valid, false=invalid)
+	localValidations map[string]bool
+
+	// mutex protects concurrent access to the vote tracker
+	mutex sync.RWMutex
+}
+
+// NewVoteTracker creates a new vote tracker
+func NewVoteTracker() *VoteTracker {
+	return &VoteTracker{
+		votes:            make(map[string]map[common.Address]bool),
+		localValidations: make(map[string]bool),
+	}
+}
+
+// TrackVote records a validator's vote for a block
+func (vt *VoteTracker) TrackVote(blockHash string, validator common.Address, approve bool) {
+	vt.mutex.Lock()
+	defer vt.mutex.Unlock()
+
+	// Initialize map for this block if it doesn't exist
+	if _, exists := vt.votes[blockHash]; !exists {
+		vt.votes[blockHash] = make(map[common.Address]bool)
+	}
+
+	// Record the vote
+	vt.votes[blockHash][validator] = approve
+}
+
+// RecordLocalValidation records the local node's validation result for a block
+func (vt *VoteTracker) RecordLocalValidation(blockHash string, isValid bool) {
+	vt.mutex.Lock()
+	defer vt.mutex.Unlock()
+
+	vt.localValidations[blockHash] = isValid
+}
+
+// IdentifyMisbehavingValidators returns a map of validators who voted contrary to
+// the local node's validation for a given block
+func (vt *VoteTracker) IdentifyMisbehavingValidators(blockHash string) map[common.Address]bool {
+	vt.mutex.RLock()
+	defer vt.mutex.RUnlock()
+
+	misbehaving := make(map[common.Address]bool)
+
+	// Get local validation result
+	localResult, exists := vt.localValidations[blockHash]
+	if !exists {
+		// We haven't validated this block locally
+		return misbehaving
+	}
+
+	// Check all votes for this block
+	if votes, exists := vt.votes[blockHash]; exists {
+		for validator, vote := range votes {
+			// If validator voted differently than our local validation
+			if vote != localResult {
+				misbehaving[validator] = vote
+			}
+		}
+	}
+
+	return misbehaving
+}
+
+// GetVotes returns all votes for a given block
+func (vt *VoteTracker) GetVotes(blockHash string) map[common.Address]bool {
+	vt.mutex.RLock()
+	defer vt.mutex.RUnlock()
+
+	if votes, exists := vt.votes[blockHash]; exists {
+		// Create a copy to avoid concurrent modification
+		result := make(map[common.Address]bool, len(votes))
+		for validator, vote := range votes {
+			result[validator] = vote
+		}
+		return result
+	}
+
+	return make(map[common.Address]bool)
+}
+
+// GetLocalValidation returns the local validation result for a block
+func (vt *VoteTracker) GetLocalValidation(blockHash string) (bool, bool) {
+	vt.mutex.RLock()
+	defer vt.mutex.RUnlock()
+
+	result, exists := vt.localValidations[blockHash]
+	return result, exists
+}
+
+// CleanupOldVotes removes vote tracking for old blocks
+func (vt *VoteTracker) CleanupOldVotes(blockHash string) {
+	vt.mutex.Lock()
+	defer vt.mutex.Unlock()
+
+	delete(vt.votes, blockHash)
+	delete(vt.localValidations, blockHash)
+}
+
 // ConsensusClient manages the p2p network for consensus algorithms
 type ConsensusClient struct {
 	// ctx is the parent context for all operations within this client
@@ -200,6 +307,9 @@ type ConsensusClient struct {
 	// harborClient is the client for communicating with the execution client via the Harbor API
 	// Responsible for requesting block creation and validation
 	harborClient *HarborClient
+
+	// voteTracker keeps track of validator voting behavior
+	voteTracker *VoteTracker
 }
 
 // NewConsensusClient creates a new consensus client with a validator address derived from
@@ -310,6 +420,7 @@ func NewConsensusClient(
 		logger:                    logger,
 		lastSeenValidators:        make(map[common.Address]time.Time),
 		validatorOfflineThreshold: 15 * time.Minute, // 3x the announcement period
+		voteTracker:               NewVoteTracker(),
 	}
 
 	// Check for Harbor service address in environment variable first
@@ -376,6 +487,12 @@ func (c *ConsensusClient) Start() error {
 
 	// Start garbage collection for seen messages
 	go c.GarbageCollectSeenMessages(5 * time.Minute)
+
+	// Start periodic vote tracking cleanup
+	go c.runVoteTrackerCleanup(10 * time.Minute)
+
+	// Start periodic validator behavior monitoring
+	go c.runValidatorBehaviorMonitoring(15 * time.Minute)
 
 	// If we have stake, we're a validator - record our presence and start announcement loop
 	if c.Consensus.GetValidatorStake(c.selfAddress) > 0 {
@@ -450,6 +567,15 @@ func (c *ConsensusClient) SubmitVote(blockHash string, approve bool) error {
 		Sender:    c.selfAddress,
 		Vote:      &vote,
 		Timestamp: time.Now(),
+	}
+
+	// Track our own vote
+	c.voteTracker.TrackVote(blockHash, c.selfAddress, approve)
+
+	// Record our local validation result if not already recorded
+	_, exists := c.voteTracker.GetLocalValidation(blockHash)
+	if !exists {
+		c.voteTracker.RecordLocalValidation(blockHash, approve)
 	}
 
 	return c.publishMessage(msg)
@@ -646,6 +772,9 @@ func (c *ConsensusClient) processMessage(msg ConsensusMessage) {
 						return
 					}
 
+					// Record our local validation result
+					c.voteTracker.RecordLocalValidation(msg.BlockData.Hash, valid)
+
 					// Vote on the block based on validation result
 					if valid {
 						c.logger.WithField("blockHash", msg.BlockData.Hash).Info("Block validation successful, voting to approve")
@@ -664,6 +793,9 @@ func (c *ConsensusClient) processMessage(msg ConsensusMessage) {
 							c.logger.WithError(err).Error("Failed to report invalid block")
 						}
 					}
+
+					// After recording our own validation, check for misbehaving validators
+					c.checkBlockConsensus(msg.BlockData.Hash)
 				}()
 			} else {
 				c.logger.Warn("No execution client available to validate block, skipping validation")
@@ -685,6 +817,15 @@ func (c *ConsensusClient) processMessage(msg ConsensusMessage) {
 				"blockHash": msg.Vote.BlockHash,
 				"approve":   msg.Vote.Approve,
 			}).Info("Received vote")
+
+			// Track the vote for validation monitoring
+			c.voteTracker.TrackVote(msg.Vote.BlockHash, msg.Vote.Validator, msg.Vote.Approve)
+
+			// Check for misbehaving validators if we have a local validation result
+			_, exists := c.voteTracker.GetLocalValidation(msg.Vote.BlockHash)
+			if exists {
+				go c.checkBlockConsensus(msg.Vote.BlockHash)
+			}
 
 			// Forward to the vote channel
 			select {
@@ -726,6 +867,45 @@ func (c *ConsensusClient) processMessage(msg ConsensusMessage) {
 			// Process validator announcement
 			c.processValidatorAnnouncement(msg.ValidatorAddress, msg.ValidatorStake, msg.ValidatorMetrics, msg.Sender)
 		}
+	}
+}
+
+// checkBlockConsensus checks if a block has reached consensus and identifies validators who voted incorrectly
+func (c *ConsensusClient) checkBlockConsensus(blockHash string) {
+	// Check if we have a local validation result
+	localValid, exists := c.voteTracker.GetLocalValidation(blockHash)
+	if !exists {
+		// We haven't validated this block yet
+		return
+	}
+
+	// Identify validators who voted differently than our local validation
+	misbehavingValidators := c.voteTracker.IdentifyMisbehavingValidators(blockHash)
+
+	// If we found misbehaving validators, report them
+	if len(misbehavingValidators) > 0 {
+		for validator, vote := range misbehavingValidators {
+			reason := fmt.Sprintf("Validator voted %v when our local validation was %v",
+				vote, localValid)
+
+			c.logger.WithFields(logrus.Fields{
+				"validator":   validator.Hex(),
+				"blockHash":   blockHash,
+				"theirVote":   vote,
+				"ourValidity": localValid,
+			}).Warn("Detected validator voting against local validation result")
+
+			// Report the validator for submitting an invalid vote
+			if err := c.ReportInvalidBlock(validator, blockHash, reason); err != nil {
+				c.logger.WithError(err).Error("Failed to report validator for incorrect vote")
+			}
+		}
+	}
+
+	if localValid {
+		c.logger.WithField("blockHash", blockHash).Info("Block locally validated as valid")
+	} else {
+		c.logger.WithField("blockHash", blockHash).Info("Block locally validated as invalid")
 	}
 }
 
@@ -1114,4 +1294,205 @@ func (c *ConsensusClient) ValidateBlockWithExecutionClient(block *blockchain.Blo
 
 	c.logger.WithField("blockHash", block.Hash).Info("Block successfully validated by execution client")
 	return true, nil
+}
+
+// runVoteTrackerCleanup periodically cleans up stale votes to prevent memory leaks
+func (c *ConsensusClient) runVoteTrackerCleanup(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+			c.cleanupStaleVotes()
+		}
+	}
+}
+
+// cleanupStaleVotes removes vote tracking for blocks that are too old
+func (c *ConsensusClient) cleanupStaleVotes() {
+	c.voteTracker.mutex.Lock()
+	defer c.voteTracker.mutex.Unlock()
+
+	// In this simplified implementation, we'll just limit the number of tracked blocks
+	// to prevent memory leaks
+	maxTrackedBlocks := 1000
+
+	if len(c.voteTracker.votes) > maxTrackedBlocks {
+		// Get a list of all tracked block hashes
+		blockHashes := make([]string, 0, len(c.voteTracker.votes))
+		for hash := range c.voteTracker.votes {
+			blockHashes = append(blockHashes, hash)
+		}
+
+		// Remove the oldest half of the blocks
+		blocksToRemove := len(blockHashes) - maxTrackedBlocks/2
+		for i := 0; i < blocksToRemove && i < len(blockHashes); i++ {
+			hash := blockHashes[i]
+			delete(c.voteTracker.votes, hash)
+			delete(c.voteTracker.localValidations, hash)
+
+			c.logger.WithField("blockHash", hash).Debug("Cleaned up stale vote tracking for old block")
+		}
+	}
+}
+
+// ValidatorVotingStats contains statistics about a validator's voting behavior
+type ValidatorVotingStats struct {
+	// Total number of votes cast by the validator
+	TotalVotes int
+
+	// Number of votes that matched our local validation
+	CorrectVotes int
+
+	// Number of votes that contradicted our local validation
+	IncorrectVotes int
+
+	// Accuracy percentage (correct votes / total votes)
+	Accuracy float64
+}
+
+// AnalyzeValidatorBehavior analyzes voting behavior of validators and returns statistics
+func (c *ConsensusClient) AnalyzeValidatorBehavior() map[common.Address]*ValidatorVotingStats {
+	stats := make(map[common.Address]*ValidatorVotingStats)
+
+	// Lock the vote tracker to prevent concurrent modification
+	c.voteTracker.mutex.RLock()
+	defer c.voteTracker.mutex.RUnlock()
+
+	// Process each block that we have locally validated
+	for blockHash, localValidation := range c.voteTracker.localValidations {
+		if votes, exists := c.voteTracker.votes[blockHash]; exists {
+			// Check each validator's vote
+			for validator, vote := range votes {
+				// Skip our own votes
+				if validator == c.selfAddress {
+					continue
+				}
+
+				// Initialize stats for this validator if needed
+				if _, exists := stats[validator]; !exists {
+					stats[validator] = &ValidatorVotingStats{}
+				}
+
+				// Update statistics
+				stats[validator].TotalVotes++
+				if vote == localValidation {
+					stats[validator].CorrectVotes++
+				} else {
+					stats[validator].IncorrectVotes++
+				}
+			}
+		}
+	}
+
+	// Calculate accuracy percentages
+	for _, validatorStats := range stats {
+		if validatorStats.TotalVotes > 0 {
+			validatorStats.Accuracy = float64(validatorStats.CorrectVotes) / float64(validatorStats.TotalVotes) * 100.0
+		}
+	}
+
+	return stats
+}
+
+// GetMisbehavingValidators returns a list of validators whose voting accuracy is below the threshold
+func (c *ConsensusClient) GetMisbehavingValidators(minVotes int, accuracyThreshold float64) []common.Address {
+	stats := c.AnalyzeValidatorBehavior()
+	misbehaving := make([]common.Address, 0)
+
+	for validator, validatorStats := range stats {
+		// Only consider validators with enough votes to be statistically significant
+		if validatorStats.TotalVotes >= minVotes {
+			// If accuracy is below threshold, consider them misbehaving
+			if validatorStats.Accuracy < accuracyThreshold {
+				misbehaving = append(misbehaving, validator)
+
+				c.logger.WithFields(logrus.Fields{
+					"validator":      validator.Hex(),
+					"totalVotes":     validatorStats.TotalVotes,
+					"correctVotes":   validatorStats.CorrectVotes,
+					"incorrectVotes": validatorStats.IncorrectVotes,
+					"accuracy":       validatorStats.Accuracy,
+				}).Warn("Identified potentially misbehaving validator")
+			}
+		}
+	}
+
+	return misbehaving
+}
+
+// runValidatorBehaviorMonitoring periodically checks for misbehaving validators
+func (c *ConsensusClient) runValidatorBehaviorMonitoring(interval time.Duration) {
+	// Wait a bit before the first check to gather some data
+	time.Sleep(interval)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+			c.monitorValidatorBehavior()
+		}
+	}
+}
+
+// monitorValidatorBehavior analyzes validator voting behavior and penalizes consistently misbehaving validators
+func (c *ConsensusClient) monitorValidatorBehavior() {
+	// Minimum number of votes required to consider a validator's behavior
+	minVotes := 5
+
+	// Accuracy threshold (percentage) below which we consider a validator misbehaving
+	accuracyThreshold := 70.0
+
+	// Get misbehaving validators
+	misbehaving := c.GetMisbehavingValidators(minVotes, accuracyThreshold)
+
+	if len(misbehaving) > 0 {
+		c.logger.WithField("count", len(misbehaving)).Info("Identified misbehaving validators")
+
+		// Analyze and report each misbehaving validator
+		for _, validator := range misbehaving {
+			// Get current status to avoid unnecessary reports
+			status := c.Consensus.GetValidatorStatus(validator)
+
+			// Only take action if they're not already penalized
+			if status == consensus.StatusActive {
+				// For validators with very poor accuracy, we might want to escalate
+				// to a more severe penalty sooner
+				stats := c.AnalyzeValidatorBehavior()[validator]
+
+				if stats.Accuracy < 50.0 && stats.TotalVotes >= 10 {
+					// Severe misbehavior - consider slashing
+					reason := fmt.Sprintf("Validator consistently voted incorrectly (%.1f%% accuracy across %d votes)",
+						stats.Accuracy, stats.TotalVotes)
+
+					c.logger.WithFields(logrus.Fields{
+						"validator": validator.Hex(),
+						"accuracy":  stats.Accuracy,
+						"votes":     stats.TotalVotes,
+					}).Warn("Slashing validator for consistent incorrect voting")
+
+					// Slash the validator
+					c.Consensus.SlashValidator(validator, reason)
+				} else {
+					// Less severe - put on probation by recording multiple missed validations
+					for i := 0; i < int(c.Consensus.GetProbationThreshold()); i++ {
+						c.Consensus.RecordMissedValidation(validator)
+					}
+
+					c.logger.WithFields(logrus.Fields{
+						"validator": validator.Hex(),
+						"accuracy":  stats.Accuracy,
+						"votes":     stats.TotalVotes,
+					}).Warn("Putting validator on probation for incorrect voting")
+				}
+			}
+		}
+	}
 }
