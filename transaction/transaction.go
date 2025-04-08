@@ -117,24 +117,6 @@ func (t *Transaction) Validate() (bool, error) {
 	return true, nil
 }
 
-// AddressFromString converts a string address to common.Address
-func AddressFromString(addr string) common.Address {
-	return common.HexToAddress(addr)
-}
-
-// NewTransaction creates a new transaction with the given parameters
-func NewTransaction(sender, receiver common.Address, amount, nonce uint64) *Transaction {
-	tx := &Transaction{
-		Sender:   sender,
-		Receiver: receiver,
-		Amount:   amount,
-		Nonce:    nonce,
-		Status:   Pending,
-	}
-	tx.TransactionHash = tx.GenerateHash()
-	return tx
-}
-
 var (
 	ErrInvalidSender     = errors.New("invalid sender address")
 	ErrInvalidRecipient  = errors.New("invalid recipient address")
