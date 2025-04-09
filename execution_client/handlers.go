@@ -4,25 +4,25 @@ import (
 	"blockchain-simulator/transaction"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/gin-gonic/gin"
 )
 
 // TransactionRequest represents a transaction request with all fields
 type TransactionRequest struct {
-	Sender    string `json:"sender" binding:"required"`
-	Receiver  string `json:"receiver" binding:"required"`
-	Amount    uint64 `json:"amount" binding:"required"`
-	Nonce     uint64 `json:"nonce" binding:"required"`
-	Signature string `json:"signature" binding:"required"`
+	TransactionHash string `json:"transactionHash" binding:"required"`
+	Sender          string `json:"sender" binding:"required"`
+	Receiver        string `json:"receiver" binding:"required"`
+	Amount          uint64 `json:"amount" binding:"required"`
+	Nonce           uint64 `json:"nonce" binding:"required"`
+	Timestamp       uint64 `json:"timestamp" binding:"required"`
+	Signature       string `json:"signature" binding:"required"`
 }
 
 // ConnectPeerRequest represents a peer connection request
 type ConnectPeerRequest struct {
-	Address string `json:"address" binding:"required"`
+	PeerID string `json:"peerID" binding:"required"`
 }
 
 // addTransaction handles transaction addition requests
@@ -46,49 +46,40 @@ func (s *Server) addTransaction(c *gin.Context) {
 		return
 	}
 
+	// Validate timestamp
+	if req.Timestamp == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid timestamp"})
+		return
+	}
+
 	// Create transaction
 	tx := transaction.Transaction{
-		Sender:    sender,
-		Receiver:  receiver,
-		Amount:    req.Amount,
-		Nonce:     req.Nonce,
-		Timestamp: uint64(time.Now().Unix()),
-		Status:    transaction.Pending,
+		TransactionHash: req.TransactionHash,
+		Sender:          sender,
+		Receiver:        receiver,
+		Amount:          req.Amount,
+		Nonce:           req.Nonce,
+		Timestamp:       req.Timestamp,
+		Status:          transaction.Pending,
 	}
 
-	// Generate transaction hash
-	tx.TransactionHash = tx.GenerateHash()
+	// validate transaction hash
+	if tx.TransactionHash == tx.GenerateHash() {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction hash mismatch"})
+		return
+	}
+
+	// Validate transaction with current state of node
+	if status, err := tx.ValidateWithState(s.client.chain.StateTrie); !status {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	// Verify signature
-	sig := common.FromHex(req.Signature)
-	if len(sig) != 65 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid signature length"})
+	if _, err := tx.Verify(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed: " + err.Error()})
 		return
 	}
-
-	// Recover public key from signature
-	hash := common.HexToHash(tx.TransactionHash)
-	sigPublicKey, err := crypto.Ecrecover(hash.Bytes(), sig)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid signature"})
-		return
-	}
-
-	// Convert public key to address
-	pubKey, err := crypto.UnmarshalPubkey(sigPublicKey)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid public key"})
-		return
-	}
-
-	signerAddress := crypto.PubkeyToAddress(*pubKey)
-	if signerAddress != sender {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Signature does not match sender"})
-		return
-	}
-
-	// Set the signature after validation
-	tx.Signature = sig
 
 	// Broadcast transaction
 	if err := s.client.BroadcastTransaction(tx); err != nil {
@@ -129,13 +120,13 @@ func (s *Server) connectToPeer(c *gin.Context) {
 	}
 
 	// Validate peer address format
-	if !isValidPeerAddress(req.Address) {
+	if !isValidPeerAddress(req.PeerID) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid peer address format"})
 		return
 	}
 
 	// Connect to peer
-	if err := s.client.ConnectToPeer(req.Address); err != nil {
+	if err := s.client.ConnectToPeer(req.PeerID); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to connect to peer: %v", err)})
 		return
 	}
