@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -44,7 +43,6 @@ type ExecutionClient struct {
 	txPool           *transaction.TransactionPool
 	chain            *blockchain.Blockchain
 	harborServer     *HarborServer
-	httpServer       *Server
 
 	// Channels for message handling
 	transactionCh chan *transaction.Transaction
@@ -62,6 +60,7 @@ func NewExecutionClient(
 	txPool *transaction.TransactionPool,
 	chain *blockchain.Blockchain,
 	validatorAddr common.Address,
+	harborServer *HarborServer,
 	logger *logrus.Logger,
 ) (*ExecutionClient, error) {
 	if txPool == nil {
@@ -83,17 +82,12 @@ func NewExecutionClient(
 		logger.SetLevel(logrus.InfoLevel)
 	}
 
-	// Generate a new key pair for the host
-	priv, _, err := crypto.GenerateKeyPair(crypto.Secp256k1, 256)
-	if err != nil {
-		cancel()
-		return nil, fmt.Errorf("failed to generate key pair: %w", err)
-	}
+	// TODO: Address should be drived from the validator private key from env variables
+	// will generate address from private key
 
 	// Create a new libp2p host
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings(listenAddr),
-		libp2p.Identity(priv),
 	)
 	if err != nil {
 		cancel()
@@ -122,8 +116,7 @@ func NewExecutionClient(
 	}
 
 	// Initialize both servers
-	client.harborServer = NewHarborServer(txPool, chain, logger)
-	client.httpServer = NewServer(client)
+	client.harborServer = harborServer
 
 	logger.WithFields(logrus.Fields{
 		"peerID":    host.ID().String(),
@@ -135,7 +128,7 @@ func NewExecutionClient(
 }
 
 // Start initializes and starts the execution client
-func (c *ExecutionClient) Start() error {
+func (c *ExecutionClient) Start(harborServerPort string, httpServer *Server, httpServerPort string) error {
 	// Join the pubsub topic
 	var err error
 	c.topic, err = c.pubsub.Join(TopicName)
@@ -160,14 +153,14 @@ func (c *ExecutionClient) Start() error {
 
 	// Start HTTP server for user interactions
 	go func() {
-		if err := c.httpServer.Start(":8080"); err != nil {
+		if err := httpServer.Start(httpServerPort); err != nil {
 			c.logger.WithError(err).Error("Failed to start HTTP server")
 		}
 	}()
 
 	// Start Harbor RPC server for consensus client
 	go func() {
-		if err := c.harborServer.StartServer("50051"); err != nil {
+		if err := c.harborServer.StartServer(harborServerPort); err != nil {
 			c.logger.WithError(err).Error("Failed to start Harbor RPC server")
 		}
 	}()
