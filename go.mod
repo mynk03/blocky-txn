@@ -5,6 +5,7 @@ go 1.24.0
 require (
 	github.com/ethereum/go-ethereum v1.15.7
 	github.com/gin-gonic/gin v1.10.0
+	github.com/joho/godotenv v1.5.1
 	github.com/libp2p/go-libp2p v0.41.1
 	github.com/libp2p/go-libp2p-pubsub v0.13.1
 	github.com/nspcc-dev/neo-go v0.108.1
