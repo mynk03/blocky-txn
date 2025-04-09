@@ -4,7 +4,6 @@ import (
 	"blockchain-simulator/blockchain"
 	"blockchain-simulator/proto/harbor"
 	"blockchain-simulator/transaction"
-	"blockchain-simulator/validator"
 	"context"
 	"fmt"
 	"net"
@@ -77,26 +76,41 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 		}, nil
 	}
 
-	// block := validator.CreateNewBlock(transactions, prevBlock)
-	block := blockchain.CreateBlock(transactions, prevBlock) // TODO: use validator.CreateNewBlock
-	block.Validator = validatorAddr.Hex()
+	// create a new block with the transactions
+	newBlock := blockchain.CreateBlock(transactions, prevBlock)
+	newBlock.Validator = validatorAddr.Hex()
+
+	// Process the transactions on the validator's state trie
+	blockchain.ProcessBlock(newBlock, s.chain.StateTrie)
+
+	// Update the state root
+	newBlock.StateRoot = s.chain.StateTrie.RootHash()
 
 	// Calculate block hash
-	block.Hash = blockchain.CalculateBlockHash(block)
+	newBlock.Hash = blockchain.CalculateBlockHash(newBlock)
+
+	// remove the transactions from the txn pool to avoid double spending
+	// get the transaction hashes
+	txHashes := make([]string, len(newBlock.Transactions))
+	for i, tx := range newBlock.Transactions {
+		txHashes[i] = tx.TransactionHash
+	}
+	// remove the transactions from the txn pool
+	s.txPool.RemoveBulkTransactions(txHashes)
 
 	// Convert to protobuf BlockData
 	blockData := &harbor.BlockData{
-		Index:        block.Index,
-		Timestamp:    block.Timestamp,
-		PrevHash:     block.PrevHash,
-		Hash:         block.Hash,
-		StateRoot:    block.StateRoot,
-		Validator:    block.Validator,
-		Transactions: make([]*harbor.TransactionData, len(block.Transactions)),
+		Index:        newBlock.Index,
+		Timestamp:    newBlock.Timestamp,
+		PrevHash:     newBlock.PrevHash,
+		Hash:         newBlock.Hash,
+		StateRoot:    newBlock.StateRoot,
+		Validator:    newBlock.Validator,
+		Transactions: make([]*harbor.TransactionData, len(newBlock.Transactions)),
 	}
 
 	// Convert transactions to protobuf format
-	for i, tx := range block.Transactions {
+	for i, tx := range newBlock.Transactions {
 		blockData.Transactions[i] = &harbor.TransactionData{
 			From:            tx.Sender.Hex(),
 			To:              tx.Receiver.Hex(),
@@ -118,6 +132,19 @@ func (s *HarborServer) ValidateBlock(ctx context.Context, req *harbor.BlockValid
 		"block_hash": req.Block.Hash,
 		"index":      req.Block.Index,
 	}).Info("Received ValidateBlock request")
+
+	// Get the last block
+	lastBlock := s.chain.GetLatestBlock()
+
+	// Check block linkage
+	if lastBlock.PrevHash != req.Block.Hash || req.Block.Index != lastBlock.Index+1 || req.Block.PrevHash == "" {
+		return &harbor.ValidationResult{
+			Valid:        false,
+			ErrorMessage: "Block linkage validation failed",
+		}, nil
+	}
+
+	tempStateTrie := s.chain.StateTrie.Copy()
 
 	// Convert protobuf BlockData to blockchain.Block
 	block := blockchain.Block{
@@ -142,20 +169,37 @@ func (s *HarborServer) ValidateBlock(ctx context.Context, req *harbor.BlockValid
 		}
 	}
 
-	// Create a validator to validate the block
-	validator := validator.NewValidator(common.HexToAddress(req.Block.Validator), s.txPool, s.chain)
+	// process the transaction on the validator's state trie
+	blockchain.ProcessBlock(block, tempStateTrie)
 
-	// Validate block
-	if !validator.ValidateBlock(block) {
+	// validate the block state root
+	if block.StateRoot != tempStateTrie.RootHash() {
+		logrus.WithFields(logrus.Fields{
+			"type":  "block_validation",
+			"error": "Block state root validation failed",
+		}).Error("Block state root validation failed")
 		return &harbor.ValidationResult{
 			Valid:        false,
-			ErrorMessage: "Block validation failed",
+			ErrorMessage: "Block state root validation failed",
 		}, nil
 	}
+
+	blockchain.ProcessBlock(block, s.chain.StateTrie)
+	s.chain.AddBlock(block)
+
+	// remove the transactions from the txn pool to avoid double spending
+	// get the transaction hashes
+	txHashes := make([]string, len(block.Transactions))
+	for i, tx := range block.Transactions {
+		txHashes[i] = tx.TransactionHash
+	}
+	// remove the transactions from the txn pool
+	s.txPool.RemoveBulkTransactions(txHashes)
 
 	return &harbor.ValidationResult{
 		Valid: true,
 	}, nil
+
 }
 
 // StartServer starts the gRPC server
