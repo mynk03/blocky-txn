@@ -25,6 +25,9 @@ go.work.sum
 .env
 node_modules/
 .DS_Store 
+
+# Test Data Folders
+ChainData/
 chaindata/
 ChainData/
 testdb/
