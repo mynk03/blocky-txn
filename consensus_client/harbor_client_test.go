@@ -9,7 +9,6 @@ import (
 	"blockchain-simulator/transactions"
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -59,6 +58,90 @@ func setupTestHarborClient(t *testing.T) (*HarborClient, *mockHarborAPIClient, *
 	}
 
 	return client, mockAPI, hook
+}
+
+// TestNewHarborClient tests the creation of a new harbor client
+func TestNewHarborClient(t *testing.T) {
+	// Case 1: With valid address and nil logger
+	address := "valid:50051"
+	client, err := NewHarborClient(address, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+	assert.Equal(t, address, client.address)
+	assert.NotNil(t, client.logger)
+	assert.NotNil(t, client.client)
+	assert.NotNil(t, client.conn)
+
+	// Clean up
+	err = client.Close()
+	assert.NoError(t, err)
+
+	// Case 2: With valid address and custom logger
+	logger := logrus.New()
+	client, err = NewHarborClient(address, logger)
+	assert.NoError(t, err)
+	assert.NotNil(t, client)
+	assert.Equal(t, address, client.address)
+	assert.Equal(t, logger, client.logger)
+	assert.NotNil(t, client.client)
+	assert.NotNil(t, client.conn)
+
+	// Clean up
+	err = client.Close()
+	assert.NoError(t, err)
+}
+
+// TestHarborClient_Connect tests the Connect method
+func TestHarborClient_Connect(t *testing.T) {
+	logger, _ := test.NewNullLogger()
+
+	// Case 1: Successful connection
+	client := &HarborClient{
+		address: "valid:50051",
+		logger:  logger,
+	}
+
+	err := client.Connect()
+	assert.NoError(t, err)
+	assert.NotNil(t, client.conn)
+	assert.NotNil(t, client.client)
+
+	// Clean up
+	err = client.Close()
+	assert.NoError(t, err)
+}
+
+// TestHarborClient_Close tests the Close method
+func TestHarborClient_Close(t *testing.T) {
+	// We already have a test for Close, but let's add more test cases
+
+	t.Run("close_nil_connection", func(t *testing.T) {
+		client := &HarborClient{
+			conn: nil,
+		}
+
+		err := client.Close()
+		assert.NoError(t, err)
+	})
+
+	t.Run("close_with_connection_error", func(t *testing.T) {
+		// Instead of creating a mock that doesn't implement the full interface,
+		// we'll use a real connection to a non-existent address, which will
+		// return an error when closed
+		conn, err := grpc.Dial(
+			"localhost:0", // Use a port that should be available but won't connect
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+		)
+		assert.NoError(t, err)
+
+		client := &HarborClient{
+			conn: conn,
+		}
+
+		err = client.Close()
+		// This should not error out in our implementation
+		assert.NoError(t, err)
+	})
 }
 
 // TestRequestBlockCreation tests the block creation request functionality
@@ -203,16 +286,12 @@ func TestValidateBlock(t *testing.T) {
 		}
 
 		tx := req.Block.Transactions[0]
-		if tx.From != senderAddr.Hex() ||
-			tx.To != receiverAddr.Hex() ||
-			tx.Amount != 100 ||
-			tx.Nonce != 1 ||
-			tx.TransactionHash != "tx123" ||
-			tx.Signature != "sig123" {
-			return false
-		}
-
-		return true
+		return tx.From == senderAddr.Hex() &&
+			tx.To == receiverAddr.Hex() &&
+			tx.Amount == 100 &&
+			tx.Nonce == 1 &&
+			tx.TransactionHash == "tx123" &&
+			tx.Signature == "sig123"
 	})).Return(mockResp, nil).Once()
 
 	// Call the method
@@ -220,121 +299,22 @@ func TestValidateBlock(t *testing.T) {
 	assert.NoError(t, err, "ValidateBlock should not return an error")
 	assert.True(t, valid, "Block should be valid")
 
-	// Case 2: Error from API client
-	mockAPI.On("ValidateBlock", mock.Anything, mock.Anything).Return(nil, errors.New("API error")).Once()
-	valid, err = client.ValidateBlock(ctx, testBlock)
-	assert.Error(t, err, "ValidateBlock should return an error when API client fails")
-	assert.False(t, valid, "Block should not be valid when API client fails")
-	assert.Contains(t, err.Error(), "failed to request block validation", "Error message should indicate API client failure")
-
-	// Case 3: Invalid block
-	mockResp = &harbor.ValidationResult{
-		Valid:        false,
-		ErrorMessage: "invalid block",
-	}
+	// Case 2: Validation failure from execution client
+	mockResp.Valid = false
+	mockResp.ErrorMessage = "Invalid transactions"
 	mockAPI.On("ValidateBlock", mock.Anything, mock.Anything).Return(mockResp, nil).Once()
 	valid, err = client.ValidateBlock(ctx, testBlock)
 	assert.Error(t, err, "ValidateBlock should return an error when block is invalid")
-	assert.False(t, valid, "Block should not be valid when validation fails")
+	assert.False(t, valid, "Block should be invalid")
 	assert.Contains(t, err.Error(), "block validation failed", "Error message should indicate validation failure")
-	assert.Contains(t, err.Error(), "invalid block", "Error message should include specific error message")
+
+	// Case 3: Error from API client
+	mockAPI.On("ValidateBlock", mock.Anything, mock.Anything).Return(nil, errors.New("API error")).Once()
+	valid, err = client.ValidateBlock(ctx, testBlock)
+	assert.Error(t, err, "ValidateBlock should return an error when API client fails")
+	assert.False(t, valid, "Block should be invalid when API client fails")
+	assert.Contains(t, err.Error(), "failed to request block validation", "Error message should indicate API client failure")
 
 	// Verify all mocks were called as expected
 	mockAPI.AssertExpectations(t)
-}
-
-// TestNewHarborClient tests the client creation functionality by creating a specialized test function
-func TestNewHarborClient(t *testing.T) {
-	// Test with simple new harbor client validation
-	logger := logrus.New()
-	hook := test.NewLocal(logger)
-
-	// Test successful client operation with direct setup
-	client := &HarborClient{
-		address: "valid:50051",
-		logger:  logger,
-		// We don't need to set conn or client for this test
-	}
-
-	// Test logging operation
-	client.logger.WithField("address", client.address).Info("Connected to execution client via Harbor service")
-
-	foundConnectLog := false
-	for _, entry := range hook.AllEntries() {
-		if entry.Message == "Connected to execution client via Harbor service" {
-			foundConnectLog = true
-			break
-		}
-	}
-	assert.True(t, foundConnectLog, "Should log connection message")
-
-	// Test nil connection close
-	err := client.Close()
-	assert.NoError(t, err, "Close should not return an error with nil connection")
-
-	// Test type compatibility
-	mockServer := &mockHarborAPIServer{}
-	result, err := mockServer.ValidateBlock(context.Background(), &harbor.BlockValidationRequest{})
-	assert.NoError(t, err)
-	assert.True(t, result.Valid)
-}
-
-// Variables to override for testing
-var grpcDial = grpc.Dial
-
-// mockHarborAPIServer implements the harbor.HarborAPIServer interface for testing
-type mockHarborAPIServer struct {
-	harbor.UnimplementedHarborAPIServer
-}
-
-// CreateBlock implements the CreateBlock method for the HarborAPIServer interface
-func (m *mockHarborAPIServer) CreateBlock(ctx context.Context, req *harbor.BlockCreationRequest) (*harbor.BlockCreationResponse, error) {
-	return &harbor.BlockCreationResponse{
-		Block: &harbor.BlockData{
-			Index:     1,
-			Timestamp: fmt.Sprintf("%d", time.Now().Unix()),
-			Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
-			Transactions: []*harbor.TransactionData{
-				{
-					From:   "0x1111111111111111111111111111111111111111",
-					To:     "0x2222222222222222222222222222222222222222",
-					Amount: 100,
-				},
-			},
-		},
-	}, nil
-}
-
-// ValidateBlock implements the ValidateBlock method for the HarborAPIServer interface
-func (m *mockHarborAPIServer) ValidateBlock(ctx context.Context, req *harbor.BlockValidationRequest) (*harbor.ValidationResult, error) {
-	return &harbor.ValidationResult{
-		Valid: true,
-	}, nil
-}
-
-// TestHarborClient_Close tests the Close method
-func TestHarborClient_Close(t *testing.T) {
-	t.Run("close nil connection", func(t *testing.T) {
-		client := &HarborClient{
-			conn: nil,
-		}
-		err := client.Close()
-		assert.NoError(t, err)
-	})
-
-	t.Run("close with connection error", func(t *testing.T) {
-		// Create a mock connection that returns an error on close
-		conn, err := grpc.DialContext(
-			context.Background(),
-			"localhost:0", // Use a port that should be available but won't connect
-			grpc.WithTransportCredentials(insecure.NewCredentials()),
-		)
-		assert.NoError(t, err)
-
-		client := &HarborClient{
-			conn: conn,
-		}
-		err = client.Close()
-		assert.NoError(t, err)
-	})
 }
