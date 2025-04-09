@@ -82,9 +82,6 @@ func NewExecutionClient(
 		logger.SetLevel(logrus.InfoLevel)
 	}
 
-	// TODO: Address should be drived from the validator private key from env variables
-	// will generate address from private key
-
 	// Create a new libp2p host
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings(listenAddr),
@@ -115,7 +112,7 @@ func NewExecutionClient(
 		logger:        logger,
 	}
 
-	// Initialize both servers
+	// Initialize harborServer 
 	client.harborServer = harborServer
 
 	logger.WithFields(logrus.Fields{

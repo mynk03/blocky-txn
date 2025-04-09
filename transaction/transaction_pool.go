@@ -44,11 +44,11 @@ func (pool *TransactionPool) AddTransaction(tx Transaction) error {
 }
 
 // GetTransaction retrieves a transaction by its hash
-func (pool *TransactionPool) GetTransaction(hash string) (Transaction, bool) {
+func (pool *TransactionPool) GetTransaction(hash string) (*Transaction, bool) {
 	pool.mu.RLock()
 	defer pool.mu.RUnlock()
 	tx, exists := pool.transactions[hash]
-	return tx, exists
+	return &tx, exists
 }
 
 // RemoveTransaction removes a transaction from the pool
@@ -59,6 +59,14 @@ func (pool *TransactionPool) RemoveTransaction(hash string) error {
 	if _, exists := pool.transactions[hash]; !exists {
 		return errors.New("transaction not found")
 	}
+
+	// change the transaction status to success
+	tx, exists := pool.GetTransaction(hash)
+	if !exists {
+		return errors.New("transaction not found")
+	}
+	tx.Status = Success
+	pool.transactions[hash] = *tx
 
 	delete(pool.transactions, hash)
 	return nil
@@ -107,7 +115,7 @@ func (pool *TransactionPool) GetPendingTransactions() []Transaction {
 func (pool *TransactionPool) GetTransactionByHash(hash string) *Transaction {
 	tx, exists := pool.GetTransaction(hash)
 	if exists {
-		return &tx
+		return tx
 	}
 	return nil
 }

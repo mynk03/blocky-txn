@@ -20,10 +20,11 @@ type HarborServer struct {
 	txPool *transaction.TransactionPool
 	chain  *blockchain.Blockchain
 	logger *logrus.Logger
+	validatorAddr string
 }
 
 // NewHarborServer creates a new Harbor server
-func NewHarborServer(txPool *transaction.TransactionPool, chain *blockchain.Blockchain, logger *logrus.Logger) *HarborServer {
+func NewHarborServer(txPool *transaction.TransactionPool, chain *blockchain.Blockchain, validatorAddr string, logger *logrus.Logger) *HarborServer {
 	if logger == nil {
 		logger = logrus.New()
 		logger.SetFormatter(&logrus.TextFormatter{
@@ -36,6 +37,7 @@ func NewHarborServer(txPool *transaction.TransactionPool, chain *blockchain.Bloc
 		txPool: txPool,
 		chain:  chain,
 		logger: logger,
+		validatorAddr: validatorAddr,
 	}
 }
 
@@ -47,10 +49,11 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 		"validator":       req.ValidatorAddress,
 	}).Info("Received CreateBlock request")
 
-	// Validate validator address
-	validatorAddr := common.HexToAddress(req.ValidatorAddress)
-	if validatorAddr == (common.Address{}) {
-		return nil, fmt.Errorf("invalid validator address")
+	// validate the validator address
+	if s.validatorAddr != req.ValidatorAddress || s.validatorAddr == "" {
+		return &harbor.BlockCreationResponse{
+			ErrorMessage: "Invalid validator address",
+		}, nil
 	}
 
 	// Get transactions from pool
@@ -78,7 +81,7 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 
 	// create a new block with the transactions
 	newBlock := blockchain.CreateBlock(transactions, prevBlock)
-	newBlock.Validator = validatorAddr.Hex()
+	newBlock.Validator = s.validatorAddr
 
 	// Process the transactions on the validator's state trie
 	blockchain.ProcessBlock(newBlock, s.chain.StateTrie)
@@ -95,6 +98,7 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 	for i, tx := range newBlock.Transactions {
 		txHashes[i] = tx.TransactionHash
 	}
+
 	// remove the transactions from the txn pool
 	s.txPool.RemoveBulkTransactions(txHashes)
 
@@ -137,14 +141,12 @@ func (s *HarborServer) ValidateBlock(ctx context.Context, req *harbor.BlockValid
 	lastBlock := s.chain.GetLatestBlock()
 
 	// Check block linkage
-	if lastBlock.PrevHash != req.Block.Hash || req.Block.Index != lastBlock.Index+1 || req.Block.PrevHash == "" {
+	if lastBlock.Hash != req.Block.PrevHash || req.Block.Index != lastBlock.Index+1 || req.Block.PrevHash == "" {
 		return &harbor.ValidationResult{
 			Valid:        false,
 			ErrorMessage: "Block linkage validation failed",
 		}, nil
 	}
-
-	tempStateTrie := s.chain.StateTrie.Copy()
 
 	// Convert protobuf BlockData to blockchain.Block
 	block := blockchain.Block{
@@ -168,6 +170,9 @@ func (s *HarborServer) ValidateBlock(ctx context.Context, req *harbor.BlockValid
 			Signature:       []byte(txData.Signature),
 		}
 	}
+
+	// create a copy of the state trie to avoid modifying the original state trie
+	tempStateTrie := s.chain.StateTrie.Copy()
 
 	// process the transaction on the validator's state trie
 	blockchain.ProcessBlock(block, tempStateTrie)

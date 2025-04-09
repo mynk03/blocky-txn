@@ -80,9 +80,9 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 	suite.chain3 = blockchain.NewBlockchain(storage3, accounts, amounts)
 
 	// Create harbor servers
-	harborServer1 := NewHarborServer(suite.txPool1, suite.chain1, suite.logger)
-	harborServer2 := NewHarborServer(suite.txPool2, suite.chain2, suite.logger)
-	harborServer3 := NewHarborServer(suite.txPool3, suite.chain3, suite.logger)
+	harborServer1 := NewHarborServer(suite.txPool1, suite.chain1, suite.wallet1.GetAddress().Hex(), suite.logger)
+	harborServer2 := NewHarborServer(suite.txPool2, suite.chain2, suite.wallet2.GetAddress().Hex(), suite.logger)
+	harborServer3 := NewHarborServer(suite.txPool3, suite.chain3, suite.wallet3.GetAddress().Hex(), suite.logger)
 
 	// Create execution clients with longer timeouts
 	suite.client1, err = NewExecutionClient(
