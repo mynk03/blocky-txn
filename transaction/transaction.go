@@ -84,7 +84,7 @@ func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) 
 		return false, ErrInsufficientFunds
 	}
 
-	if t.Nonce != senderAccount.Nonce {
+	if t.Nonce != senderAccount.Nonce+1 {
 		return false, ErrInvalidNonce
 	}
 

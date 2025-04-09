@@ -51,3 +51,8 @@ func (w *MockWallet) SignTransaction(hash common.Hash) ([]byte, error) {
 	}
 	return crypto.Sign(hash.Bytes(), w.privateKey)
 }
+
+// GetPrivateKey returns the wallet's private key
+func (w *MockWallet) GetPrivateKey() *ecdsa.PrivateKey {
+	return w.privateKey
+}
