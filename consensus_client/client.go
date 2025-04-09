@@ -60,6 +60,13 @@ const (
 	ValidatorAnnouncement
 )
 
+// ExecutionClient represents the interface for interacting with the execution client (Harbor service)
+type ExecutionClient interface {
+	RequestBlockCreation(ctx context.Context, validatorAddress common.Address, prevBlockHash string, maxTransactions uint32) (*blockchain.Block, error)
+	ValidateBlock(ctx context.Context, block *blockchain.Block) (bool, error)
+	Close() error
+}
+
 // ConsensusMessage represents a message exchanged between consensus nodes
 type ConsensusMessage struct {
 	// Type indicates the category of this message (BlockProposal, Vote, ValidationMissed, etc.)
@@ -231,7 +238,7 @@ func (vt *VoteTracker) CleanupOldVotes(blockHash string) {
 	delete(vt.localValidations, blockHash)
 }
 
-// ConsensusClient manages the p2p network for consensus algorithms
+// ConsensusClient is the main client for participating in consensus
 type ConsensusClient struct {
 	// ctx is the parent context for all operations within this client
 	// Canceling this context will stop all goroutines started by this client
@@ -306,7 +313,7 @@ type ConsensusClient struct {
 
 	// harborClient is the client for communicating with the execution client via the Harbor API
 	// Responsible for requesting block creation and validation
-	harborClient *HarborClient
+	harborClient ExecutionClient
 
 	// voteTracker keeps track of validator voting behavior
 	voteTracker *VoteTracker
