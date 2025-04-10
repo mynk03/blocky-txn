@@ -12,33 +12,142 @@ The execution client is a key component of the blockchain simulator that handles
 - Validator key management
 - Dynamic port allocation
 
+## Quick Start
+
+1. First, initialize the wallets to get initial user addresses and funds:
+```bash
+go run wallet/cmd/main.go
+```
+This will generate initial wallets and their private keys. Make sure to save these private keys as you'll need them to start nodes.
+
+2. Verify the generated JSON files:
+```bash
+# Check the generated wallets
+cat chain_data/genesis_data/initial_users/mock_wallets.json
+
+# Check the generated transactions
+cat chain_data/genesis_data/initial_users/mock_transactions.json
+```
+Make sure these files contain valid JSON data with wallet addresses and initial transactions.
+
+3. Copy the environment file and update the values:
+```bash
+cp .env.example .env
+```
+
+4. Edit the `.env` file with your configuration:
+```bash
+# Node 1 Configuration
+VALIDATOR_PRIVATE_KEY=<private_key_from_wallets_cmd>
+DATA_DIR="./chain_data/node1"
+HTTP_PORT=8081
+HARBOR_PORT=50051
+
+# Node 2 Configuration (uncomment and update for second node)
+# VALIDATOR_PRIVATE_KEY=<private_key_from_wallets_cmd>
+# DATA_DIR="./chain_data/node2"
+# HTTP_PORT=8082
+# HARBOR_PORT=50052
+```
+
+5. Run the node:
+```bash
+go run execution_client/cmd/main.go
+```
+
+## HTTP API Documentation
+
+### Transaction Management
+
+#### Submit a Transaction
+```bash
+curl -X POST http://localhost:8081/transaction \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transactionHash": "32d81664f96af65c6266726c439019fd2c88272bd23065f1b946e1baf480c147",
+    "sender": "0xfb5865ee63A8D3C5c69F76f181275ef36d92BddA",
+    "receiver": "0x24E82C112D9B97c49890DAC46BCCD32768428c16",
+    "amount": 10,
+    "nonce": 1,
+    "timestamp": 1744294774,
+    "signature": "8df23503cc58894e71057f3fbd48fc6f0a5cc34595a136140cea95bb5f3cc26f3a5a40cebfdf048f8a88d4bac3be1131cb2b52e8794cdddd22c7df3d8cda516500"
+  }'
+```
+
+#### Get Pending Transactions
+```bash
+curl http://localhost:8081/transactions
+```
+
+### Node Information
+
+#### Get Node ID
+```bash
+curl http://localhost:8081/node/id
+```
+
+#### List Connected Peers
+```bash
+curl http://localhost:8081/test/peers
+```
+
+#### Connect to a Peer
+```bash
+curl -X POST http://localhost:8081/test/peer/connect \
+  -H "Content-Type: application/json" \
+  -d '{"Address": "/ip4/127.0.0.1/tcp/58096/p2p/12D3KooWHtkcAnYeqdXvoAZeTAjqzsqbBX9KU2eNSDWwoH7WyFfB"}'
+```
+
 ## Running Multiple Nodes
 
-To run multiple nodes on your local machine, you need to specify different ports and data directories for each node. Here's how to run two nodes:
+To run multiple nodes on your local machine, you need to specify different ports and data directories for each node in the `.env`. Here's how to run two nodes:
 
-### Node 1
 ```bash
-go run cmd/main.go \
-  -listen "/ip4/0.0.0.0/tcp/0" \
-  -http-port 8081 \
-  -harbor-port 50051 \
-  -initial-balance 5000 \
-  -log-level debug \
-  -validator-key dd3207e786abd81ae49ce81b8323610adf425cc7c175abe42a1190e413d6d04d \
-  -datadir ./data1
+go run execution_client/cmd/main.go           
 ```
 
-### Node 2
+- Make sure to be in root folder i.e. `blockchain-simulator`
+- Use different private keys from the wallets command for each node
+- Configure different ports in the `.env` file for each node
+
+### Quick Peer Connection
+
+To quickly connect peers between nodes, you can use the connection script:
+
+1. Make the connection script executable:
+
+**Give executable permission**  
 ```bash
-go run cmd/main.go \
-  -listen "/ip4/0.0.0.0/tcp/0" \
-  -http-port 8082 \
-  -harbor-port 50052 \
-  -initial-balance 5000 \
-  -log-level debug \
-  -validator-key bc832b10ee6cf21c4975be4fa21de44dd1c3527f14244e531c69d13fa5224571 \
-  -datadir ./data2
+chmod +x execution_client/scripts/test_transaction.sh
 ```
+
+**Run the test script:**
+```bash
+./execution_client/scripts/connect_peers.sh   
+```
+
+## Testing
+
+### Running Test Scripts
+
+The repository includes test scripts to help you test the functionality:
+
+1. Make the test script executable:
+```bash
+chmod +x execution_client/scripts/test_transaction.sh
+```
+
+2. Run the test script:
+```bash
+./execution_client/scripts/test_transaction.sh
+```
+
+This script will:
+- Send a test transaction to Node 1
+- Wait for transaction broadcast
+- Check transaction pools on both nodes
+- Verify peer connections
+- Display all transactions in both nodes' pools
 
 ## What Gets Initialized
 
@@ -77,50 +186,44 @@ When you start a node, the following components are initialized:
    - Peer discovery setup
 
 8. **HTTP Server**
-   - REST API endpoints:
-     - POST /transaction - Add new transaction
-     - GET /node/id - Get node ID
-     - GET /transactions - Get pending transactions
-     - GET /test/peers - List all peers
-     - POST /test/peer/connect - Connect to a peer
+   - REST API endpoints for transaction and node management
 
 ## Environment Variables
 
-You can also use environment variables instead of command-line flags:
-
-```bash
-export VALIDATOR_PRIVATE_KEY=your_private_key_here
-export HTTP_PORT=8081
-export HARBOR_PORT=50051
-export INITIAL_BALANCE=5000
-export LOG_LEVEL=debug
-export DATA_DIR=./data1
+`.env`
 ```
+LISTEN_ADDR=/ip4/127.0.0.1/tcp/0
+INITIAL_BALANCE=5000
+LOG_LEVEL=debug
 
-## Connecting Nodes
 
-After starting multiple nodes, they will automatically discover each other through mDNS. You can also manually connect nodes using the HTTP API:
+WALLETS_PATH="chain_data/genesis_data/initial_users/mock_wallets.json"
+TRANSACTIONS_PATH="chain_data/genesis_data/initial_users/mock_transactions.json"
 
-```bash
-# First, get the peer ID of node1
-curl http://localhost:8081/node/id
 
-# Then use that peer ID to connect node2 to node1
-curl -X POST http://localhost:8082/test/peer/connect \
-  -H "Content-Type: application/json" \
-  -d '{"Address": "/ip4/127.0.0.1/tcp/58096/p2p/12D3KooWHtkcAnYeqdXvoAZeTAjqzsqbBX9KU2eNSDWwoH7WyFfB"}'
+# ! Node 1 Configuration
+VALIDATOR_PRIVATE_KEY=<private_key>
+DATA_DIR="./chain_data/node1"
+HTTP_PORT=8081
+HARBOR_PORT=50051
+
+
+
+# ! Node 2 Configuration
+# VALIDATOR_PRIVATE_KEY=<private_key>
+# DATA_DIR="./chain_data/node2"
+# HTTP_PORT=8082
+# HARBOR_PORT=50052
+
+# Description of each variable:
+# VALIDATOR_PRIVATE_KEY: Private key in hex format (without 0x prefix)
+# DATA_DIR: Directory for storing blockchain data
+# HTTP_PORT: Port for HTTP API server
+# HARBOR_PORT: Port for Harbor RPC server
+# LISTEN_ADDR: P2P network listen address
+# INITIAL_BALANCE: Initial balance for validator account
+# LOG_LEVEL: Logging level (debug, info, warn, error) 
 ```
-
-## API Endpoints
-
-### Transaction Management
-- `POST /transaction` - Submit a new transaction
-- `GET /transactions` - Get all pending transactions
-
-### Node Information
-- `GET /node/id` - Get node's P2P ID and address
-- `GET /test/peers` - List all connected peers
-- `POST /test/peer/connect` - Connect to a specific peer
 
 ## Logging
 
