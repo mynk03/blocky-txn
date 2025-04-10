@@ -28,9 +28,9 @@ func main() {
 	logger.Info("Starting execution client node...")
 
 	// Get configuration from environment
-	dataDir := getEnv("DATA_DIR", "./data")
+	dataDir := getEnv("DATA_DIR", "./ChainData/node2")
 	httpPort := getEnv("HTTP_PORT", "8080")
-	harborPort := getEnv("HARBOR_PORT", "50051")
+	harborPort := getEnv("HARBOR_PORT", "50050")
 	listenAddr := getEnv("LISTEN_ADDR", "/ip4/127.0.0.1/tcp/0")
 	validatorKey := getEnv("VALIDATOR_PRIVATE_KEY", "")
 
