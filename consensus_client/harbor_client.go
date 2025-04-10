@@ -17,6 +17,14 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// ExecutionClient represents the interface for interacting with the execution client (Harbor service)
+type ExecutionClient interface {
+	RequestBlockCreation(ctx context.Context, validatorAddress common.Address, prevBlockHash string, maxTransactions uint32) (*blockchain.Block, error)
+	ValidateBlock(ctx context.Context, block *blockchain.Block) (bool, error)
+	Close() error
+}
+
+
 // HarborClient handles communication with the execution client via the Harbor gRPC service
 // This is similar to how Ethereum's consensus client communicates with the execution client via the ENGINE API
 type HarborClient struct {
