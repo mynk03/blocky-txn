@@ -2,7 +2,10 @@ package execution_client
 
 import (
 	"blockchain-simulator/transaction"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -27,11 +30,19 @@ type ConnectPeerRequest struct {
 
 // addTransaction handles transaction addition requests
 func (s *Server) addTransaction(c *gin.Context) {
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Failed to read request body: %v", err)})
+		return
+	}
+
 	var req TransactionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := json.Unmarshal(body, &req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("Invalid request: %v", err)})
 		return
 	}
+
+	fmt.Println("req: ", req)
 
 	// Validate addresses
 	sender := common.HexToAddress(req.Sender)
@@ -39,6 +50,7 @@ func (s *Server) addTransaction(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sender address"})
 		return
 	}
+	fmt.Println("sender: ", sender)
 
 	receiver := common.HexToAddress(req.Receiver)
 	if receiver == (common.Address{}) {
@@ -52,6 +64,12 @@ func (s *Server) addTransaction(c *gin.Context) {
 		return
 	}
 
+	signature, err := hex.DecodeString(req.Signature)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot decode signature: " + err.Error()})
+		return
+	}
+
 	// Create transaction
 	tx := transaction.Transaction{
 		TransactionHash: req.TransactionHash,
@@ -61,23 +79,25 @@ func (s *Server) addTransaction(c *gin.Context) {
 		Nonce:           req.Nonce,
 		Timestamp:       req.Timestamp,
 		Status:          transaction.Pending,
+		Signature:       signature,
 	}
+	fmt.Println("Transaction: ", tx)
 
 	// validate transaction hash
 	if tx.TransactionHash == tx.GenerateHash() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction hash mismatch"})
 		return
 	}
+	
+	// Verify signature
+	if _, err := tx.Verify(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed: " + err.Error()})
+		return
+	}
 
 	// Validate transaction with current state of node
 	if status, err := tx.ValidateWithState(s.client.chain.StateTrie); !status {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Verify signature
-	if _, err := tx.Verify(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed: " + err.Error()})
 		return
 	}
 
