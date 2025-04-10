@@ -41,13 +41,13 @@ make_request() {
 # Create a test transaction
 echo -e "\n${GREEN}Creating test transaction...${NC}"
 TX_DATA='{
-    "transactionHash": "0x14a24eb3539734dc81278f21dbafc8cfc29b7f11f316fe27b2e9ac1eff903ba8",
-    "sender": "0x89c09085Dbba562b54a7C6D55617697e07398cdC",
-    "receiver": "0xf924cbdb6eBeba80B9fd0dbEf8d16B6211Bab649",
+    "transactionHash": "2832893f394b8c90e43c3100e2334c2fe843d77aa957b39e64884aed9be12a57",
+    "sender": "0x186Dbe76F6B2022b518B4cA42617Ed827aeB7278",
+    "receiver": "0xF2bE31c1B5EA7C0AB7C1cBD7609ecF511c8a3CD0",
     "amount": 10,
     "nonce": 1,
-    "timestamp": 1744204856,
-    "signature": "fabfae22fca0015e70ddc1f06d518e3a3c91941805308c8e909765c5ea40a56f2711d750178ae27736309d51b382ebff8976f8e677c64fc2daf6a5fe32b580c201"
+    "timestamp": 1744284080,
+    "signature": "a9ddeb2f1a2c7111093a260b8045e37c9dc1fdd03f3e472b8df74b2f773b6ca47485bbf186911dc9d0fabd66aa705121c4ea941aee21cfebadcac02288db25ad01"
   }'
 
 # Send transaction to Node 1
