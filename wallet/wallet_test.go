@@ -79,7 +79,7 @@ func (suite *WalletTestSuite) TestMockWalletSignTransaction() {
 	valid := crypto.VerifySignature(
 		crypto.FromECDSAPub(pubkey),
 		testHash.Bytes(),
-		signatureNoRecoverID,
+		[]byte(signatureNoRecoverID),
 	)
 	suite.True(valid)
 }
@@ -133,7 +133,7 @@ func (suite *WalletTestSuite) TestMockWalletSignatureVerification() {
 	valid := crypto.VerifySignature(
 		crypto.FromECDSAPub(pubkey1),
 		testHash.Bytes(),
-		signatureNoRecoverID,
+		[]byte(signatureNoRecoverID),
 	)
 	suite.True(valid)
 
@@ -142,7 +142,7 @@ func (suite *WalletTestSuite) TestMockWalletSignatureVerification() {
 	valid = crypto.VerifySignature(
 		crypto.FromECDSAPub(pubkey2),
 		testHash.Bytes(),
-		signatureNoRecoverID,
+		[]byte(signatureNoRecoverID),
 	)
 	suite.False(valid)
 }

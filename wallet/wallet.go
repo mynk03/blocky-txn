@@ -17,6 +17,8 @@ var generateKey = crypto.GenerateKey
 type MockWallet struct {
 	privateKey *ecdsa.PrivateKey
 	address    common.Address
+	balance    uint64
+	nonce      uint64
 }
 
 // NewMockWallet creates a new mock wallet with a random private key
@@ -36,6 +38,8 @@ func NewMockWallet() (*MockWallet, error) {
 	return &MockWallet{
 		privateKey: privateKey,
 		address:    address,
+		balance:    100,
+		nonce:      0,
 	}, nil
 }
 
