@@ -179,11 +179,13 @@ func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactions() {
 	// Remove transactions
 	suite.tp.RemoveBulkTransactions(hashes)
 
+	// Get log output before checking transactions
+	logString := logBuffer.String()
+
 	// Verify transactions were removed
 	suite.Len(suite.tp.GetAllTransactions(), 0)
 
 	// Verify log output contains error for non-existent transaction
-	logString := logBuffer.String()
 	suite.Contains(logString, "failed to remove transaction")
 	suite.Contains(logString, "non_existent_hash")
 }
@@ -348,7 +350,7 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 	// Create a test account with sufficient balance
 	account := state.Account{
 		Balance: 1000,
-		Nonce:   1,
+		Nonce:   0,
 	}
 	err := stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account)
 	suite.NoError(err)
@@ -411,11 +413,11 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {
 	// Create test accounts
 	account1 := state.Account{
 		Balance: 1000,
-		Nonce:   1,
+		Nonce:   0,
 	}
 	account2 := state.Account{
 		Balance: 500,
-		Nonce:   1,
+		Nonce:   0,
 	}
 	err := stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account1)
 	suite.NoError(err)
@@ -466,7 +468,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationEdgeCases() {
 	// Create a test account with maximum balance
 	account := state.Account{
 		Balance: ^uint64(0), // Maximum uint64 value
-		Nonce:   1,
+		Nonce:   0,
 	}
 	err := stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account)
 	suite.NoError(err)

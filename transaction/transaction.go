@@ -54,13 +54,15 @@ func (t *Transaction) Verify() (bool, error) {
 	// Generate transaction hash
 	txHash := common.HexToHash(t.GenerateHash())
 
-	sigPublicKey, err := ethcrypto.Ecrecover(txHash.Bytes(), t.Signature)
+	sigPublicKey, err := ethcrypto.SigToPub(txHash.Bytes(), t.Signature)
+	publicKeyBytes := ethcrypto.FromECDSAPub(sigPublicKey)
+
 	if err != nil {
-		return false, errors.New(ErrInvalidSignature.Error() + err.Error())
+		return false, errors.New(ErrInvalidSignature.Error() + " recovery error: " + err.Error())
 	}
 
 	// Convert the recovered public key to an address
-	recoveredAddr := common.BytesToAddress(ethcrypto.Keccak256(sigPublicKey[1:])[12:])
+	recoveredAddr := common.BytesToAddress(ethcrypto.Keccak256(publicKeyBytes[1:])[12:])
 
 	// Compare the recovered address with the sender's address
 	matches := recoveredAddr == t.Sender
@@ -86,15 +88,6 @@ func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) 
 
 	if t.Nonce != senderAccount.Nonce+1 {
 		return false, ErrInvalidNonce
-	}
-
-	// Finally verify signature
-	matches, err := t.Verify()
-	if err != nil {
-		return false, err
-	}
-	if !matches {
-		return false, ErrInvalidSignature
 	}
 
 	return true, nil
