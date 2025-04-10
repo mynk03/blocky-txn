@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"blockchain-simulator/transaction"
@@ -52,8 +53,21 @@ func main() {
 		logrus.Warn("No .env file found")
 	}
 
-	totalWallets := 5
-	totalTransactions := 5
+	// taking the total number of wallets and transactions from the environment variable
+	totalWalletsString := getEnv("TOTAL_WALLETS", "5")
+	totalTransactionsString := getEnv("TOTAL_TRANSACTIONS", "5")
+
+	// converting the total number of wallets and transactions to int
+	totalWallets, err := strconv.Atoi(totalWalletsString)
+	if err != nil {
+		logrus.Errorf("Error converting total wallets to int: %v\n", err)
+		return
+	}
+	totalTransactions, err := strconv.Atoi(totalTransactionsString)
+	if err != nil {
+		logrus.Errorf("Error converting total transactions to int: %v\n", err)
+		return
+	}
 
 	// Create chain_data/genesis_data directory if it doesn't exist
 	if err := os.MkdirAll("chain_data/genesis_data", 0755); err != nil {
