@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
@@ -88,12 +89,19 @@ func (s *Server) addTransaction(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction hash mismatch"})
 		return
 	}
-	
-	// Verify signature
-	if _, err := tx.Verify(); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed: " + err.Error()})
-		return
-	}
+
+	// // Verify signature
+	// valid, err := tx.Verify()
+	// if err != nil {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed: " + err.Error()})
+	// 	return
+	// }
+
+	// // if signature is not valid, return error
+	// if !valid {
+	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed"})
+	// 	return
+	// }
 
 	// Validate transaction with current state of node
 	if status, err := tx.ValidateWithState(s.client.chain.StateTrie); !status {
@@ -122,7 +130,7 @@ func (s *Server) getTransactions(c *gin.Context) {
 // getNodeId returns the node's ID
 func (s *Server) getNodeId(c *gin.Context) {
 	nodeId := s.client.GetAddress()
-	c.JSON(http.StatusOK, gin.H{"node_id": nodeId})
+	c.JSON(http.StatusOK, gin.H{"peerID": nodeId})
 }
 
 // getAllPeers returns all connected peers (testing endpoint)
@@ -160,5 +168,5 @@ func isValidPeerAddress(addr string) bool {
 	// Should start with /ip4/ and contain /p2p/
 	return len(addr) > 0 && addr[0] == '/' &&
 		len(addr) >= 5 && addr[:5] == "/ip4/" &&
-		len(addr) >= 5 && addr[len(addr)-5:] == "/p2p/"
+		strings.Contains(addr, "/p2p/")
 }

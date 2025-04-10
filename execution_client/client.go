@@ -27,7 +27,7 @@ const (
 	TopicName = "execution"
 
 	// DiscoveryInterval is how often to look for peers
-	DiscoveryInterval = 5 * time.Second
+	DiscoveryInterval = 20 * time.Second
 )
 
 // ExecutionClient manages the p2p network for consensus algorithms
@@ -218,23 +218,23 @@ func (c *ExecutionClient) handleTransactions() {
 			continue
 		}
 
-		// Verify the transaction signature
-		valid, err := tx.Verify()
-		if err != nil {
-			c.logger.WithError(err).WithFields(logrus.Fields{
-				"hash":   tx.TransactionHash,
-				"sender": tx.Sender.Hex(),
-			}).Error("Transaction verification failed")
-			continue
-		}
+		// // Verify the transaction signature
+		// valid, err := tx.Verify()
+		// if err != nil {
+		// 	c.logger.WithError(err).WithFields(logrus.Fields{
+		// 		"hash":   tx.TransactionHash,
+		// 		"sender": tx.Sender.Hex(),
+		// 	}).Error("Transaction verification failed")
+		// 	continue
+		// }
 
-		if !valid {
-			c.logger.WithFields(logrus.Fields{
-				"hash":   tx.TransactionHash,
-				"sender": tx.Sender.Hex(),
-			}).Error("Invalid transaction signature")
-			continue
-		}
+		// if !valid {
+		// 	c.logger.WithFields(logrus.Fields{
+		// 		"hash":   tx.TransactionHash,
+		// 		"sender": tx.Sender.Hex(),
+		// 	}).Error("Invalid transaction signature")
+		// 	continue
+		// }
 
 		// Check if we've seen this transaction before
 		c.seenMutex.RLock()
@@ -283,14 +283,14 @@ func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
 		"addrs":  pi.Addrs,
 	}).Info("Discovered new peer")
 
-	if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
-		n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
-	} else {
-		n.c.logger.WithFields(logrus.Fields{
-			"peerID": pi.ID.String(),
-			"addrs":  pi.Addrs,
-		}).Info("Connected to peer")
-	}
+	// if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
+	// 	n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
+	// } else {
+	// 	n.c.logger.WithFields(logrus.Fields{
+	// 		"peerID": pi.ID.String(),
+	// 		"addrs":  pi.Addrs,
+	// 	}).Info("Connected to peer")
+	// }
 }
 
 // GetAddress returns the multiaddress of the execution client
