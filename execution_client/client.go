@@ -112,7 +112,7 @@ func NewExecutionClient(
 		logger:        logger,
 	}
 
-	// Initialize harborServer 
+	// Initialize harborServer
 	client.harborServer = harborServer
 
 	logger.WithFields(logrus.Fields{
@@ -126,6 +126,13 @@ func NewExecutionClient(
 
 // Start initializes and starts the execution client
 func (c *ExecutionClient) Start(harborServerPort string, httpServer *Server, httpServerPort string) error {
+
+	// Setup mDNS discovery
+	c.discoveryService = mdns.NewMdnsService(c.host, ProtocolID, &discoveryNotifee{c: c})
+	if err := c.discoveryService.Start(); err != nil {
+		return fmt.Errorf("failed to start discovery service: %w", err)
+	}
+
 	// Join the pubsub topic
 	var err error
 	c.topic, err = c.pubsub.Join(TopicName)
@@ -137,12 +144,6 @@ func (c *ExecutionClient) Start(harborServerPort string, httpServer *Server, htt
 	c.subscription, err = c.topic.Subscribe()
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to topic: %w", err)
-	}
-
-	// Setup mDNS discovery
-	c.discoveryService = mdns.NewMdnsService(c.host, ProtocolID, &discoveryNotifee{c: c})
-	if err := c.discoveryService.Start(); err != nil {
-		return fmt.Errorf("failed to start discovery service: %w", err)
 	}
 
 	// Start message handling goroutine
@@ -217,6 +218,24 @@ func (c *ExecutionClient) handleTransactions() {
 			continue
 		}
 
+		// Verify the transaction signature
+		valid, err := tx.Verify()
+		if err != nil {
+			c.logger.WithError(err).WithFields(logrus.Fields{
+				"hash":   tx.TransactionHash,
+				"sender": tx.Sender.Hex(),
+			}).Error("Transaction verification failed")
+			continue
+		}
+
+		if !valid {
+			c.logger.WithFields(logrus.Fields{
+				"hash":   tx.TransactionHash,
+				"sender": tx.Sender.Hex(),
+			}).Error("Invalid transaction signature")
+			continue
+		}
+
 		// Check if we've seen this transaction before
 		c.seenMutex.RLock()
 		seen := c.seenMessages[tx.TransactionHash]
@@ -233,7 +252,10 @@ func (c *ExecutionClient) handleTransactions() {
 
 		// Add transaction to pool
 		if err := c.txPool.AddTransaction(tx); err != nil {
-			c.logger.WithError(err).Error("Failed to add transaction to pool")
+			c.logger.WithError(err).WithFields(logrus.Fields{
+				"hash":   tx.TransactionHash,
+				"sender": tx.Sender.Hex(),
+			}).Error("Failed to add transaction to pool")
 			continue
 		}
 
@@ -241,7 +263,10 @@ func (c *ExecutionClient) handleTransactions() {
 		select {
 		case c.transactionCh <- &tx:
 		default:
-			c.logger.Warn("Transaction channel full, dropping message")
+			c.logger.WithFields(logrus.Fields{
+				"hash":   tx.TransactionHash,
+				"sender": tx.Sender.Hex(),
+			}).Warn("Transaction channel full, dropping message")
 		}
 	}
 }
@@ -271,6 +296,9 @@ func (c *ExecutionClient) GetAddress() string {
 // GetPeers returns the list of connected peer addresses
 func (c *ExecutionClient) GetPeers() []string {
 	peers := c.host.Network().Peers()
+	
+	fmt.Println("peers: ", peers)
+
 	peerAddrs := make([]string, 0, len(peers))
 
 	for _, peerID := range peers {

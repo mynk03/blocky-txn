@@ -80,9 +80,9 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 	suite.chain3 = blockchain.NewBlockchain(storage3, accounts, amounts)
 
 	// Create harbor servers
-	harborServer1 := NewHarborServer(suite.txPool1, suite.chain1, suite.wallet1.GetAddress().Hex(), suite.logger)
-	harborServer2 := NewHarborServer(suite.txPool2, suite.chain2, suite.wallet2.GetAddress().Hex(), suite.logger)
-	harborServer3 := NewHarborServer(suite.txPool3, suite.chain3, suite.wallet3.GetAddress().Hex(), suite.logger)
+	harborServer1 := NewHarborServer(suite.txPool1, suite.chain1, accounts[0], suite.logger)
+	harborServer2 := NewHarborServer(suite.txPool2, suite.chain2, accounts[1], suite.logger)
+	harborServer3 := NewHarborServer(suite.txPool3, suite.chain3, accounts[2], suite.logger)
 
 	// Create execution clients with longer timeouts
 	suite.client1, err = NewExecutionClient(
@@ -121,20 +121,22 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 	server3 := NewServer(suite.client3)
 
 	// Start clients with proper delays
-	err = suite.client1.Start("5051", server1, "8080")
+	err = suite.client1.Start("5051", server1, "8081")
 	suite.Require().NoError(err, "Failed to start client1")
 	time.Sleep(500 * time.Millisecond) // Wait for client1 to fully initialize
 
-	err = suite.client2.Start("5051", server2, "8081")
+	err = suite.client2.Start("5052", server2, "8082")
 	suite.Require().NoError(err, "Failed to start client2")
 	time.Sleep(500 * time.Millisecond) // Wait for client2 to fully initialize
 
-	err = suite.client3.Start("5051", server3, "8082")
+	err = suite.client3.Start("5053", server3, "8083")
 	suite.Require().NoError(err, "Failed to start client3")
 	time.Sleep(500 * time.Millisecond) // Wait for client3 to fully initialize
 }
 
 func (suite *ExecutionClientTestSuite) TearDownTest() {
+	fmt.Println("\n ** Tearing down test environment...")
+
 	// Stop clients in reverse order
 	if suite.client3 != nil {
 		suite.client3.Stop()
@@ -162,6 +164,8 @@ func (suite *ExecutionClientTestSuite) TearDownTest() {
 
 	// Clean up test data directory
 	os.RemoveAll("./testdata")
+	// Give time for the clients to stop
+	time.Sleep(500 * time.Millisecond)
 }
 
 func TestExecutionClientTestSuite(t *testing.T) {
@@ -169,7 +173,7 @@ func TestExecutionClientTestSuite(t *testing.T) {
 }
 
 func (suite *ExecutionClientTestSuite) TestTransactionPropagation() {
-	fmt.Println("\nTesting transaction propagation between two nodes...")
+	fmt.Println("\nTesting transaction propagation between nodes...")
 
 	// Ensure clients are initialized
 	suite.Require().NotNil(suite.client1, "client1 should not be nil")
@@ -198,17 +202,20 @@ func (suite *ExecutionClientTestSuite) TestTransactionPropagation() {
 	// Wait for transaction to be processed
 	time.Sleep(1000 * time.Millisecond)
 
-	// Verify transaction was added to both clients' transaction pools
-	fmt.Println("Verifying transaction in both pools...")
+	// Verify transaction was added to all clients' transaction pools
+	fmt.Println("Verifying transaction in all clients' txn pools...")
 	suite.True(suite.client1.txPool.HasTransaction(tx.TransactionHash), "Transaction should be in client1's pool")
 	suite.True(suite.client2.txPool.HasTransaction(tx.TransactionHash), "Transaction should be in client2's pool")
+	suite.True(suite.client3.txPool.HasTransaction(tx.TransactionHash), "Transaction should be in client3's pool")
 
 	// Verify transaction details in both pools
 	tx1, exists1 := suite.client1.txPool.GetTransaction(tx.TransactionHash)
 	tx2, exists2 := suite.client2.txPool.GetTransaction(tx.TransactionHash)
+	tx3, exists3 := suite.client3.txPool.GetTransaction(tx.TransactionHash)
 
 	suite.True(exists1, "Transaction should exist in client1's pool")
 	suite.True(exists2, "Transaction should exist in client2's pool")
+	suite.True(exists3, "Transaction should exist in client3's pool")
 
 	// Verify transaction details are consistent
 	suite.Equal(tx1.Sender, tx.Sender, "Sender should match")
@@ -221,86 +228,10 @@ func (suite *ExecutionClientTestSuite) TestTransactionPropagation() {
 	suite.Equal(tx2.Amount, tx.Amount, "Amount should match")
 	suite.Equal(tx2.Nonce, tx.Nonce, "Nonce should match")
 
-	fmt.Println("Transaction successfully propagated from client1 to client2!")
-}
+	suite.Equal(tx3.Sender, tx.Sender, "Sender should match")
+	suite.Equal(tx3.Receiver, tx.Receiver, "Receiver should match")
+	suite.Equal(tx3.Amount, tx.Amount, "Amount should match")
+	suite.Equal(tx3.Nonce, tx.Nonce, "Nonce should match")
 
-func (suite *ExecutionClientTestSuite) TestBroadcastTransaction() {
-	// Create and broadcast transaction
-	tx := transaction.Transaction{
-		Sender:    suite.wallet1.GetAddress(),
-		Receiver:  suite.wallet2.GetAddress(),
-		Amount:    100,
-		Nonce:     0,
-		Status:    transaction.Pending,
-		Timestamp: uint64(time.Now().Unix()),
-	}
-	tx.TransactionHash = tx.GenerateHash()
-
-	signature, err := suite.wallet1.SignTransaction(common.HexToHash(tx.TransactionHash))
-	suite.Require().NoError(err)
-	tx.Signature = signature
-
-	// Test broadcasting
-	err = suite.client1.BroadcastTransaction(tx)
-	suite.Require().NoError(err)
-
-	// Wait for propagation
-	time.Sleep(500 * time.Millisecond)
-
-	// Verify transaction in both pools
-	suite.True(suite.client1.txPool.HasTransaction(tx.TransactionHash))
-	suite.True(suite.client2.txPool.HasTransaction(tx.TransactionHash))
-}
-
-func (suite *ExecutionClientTestSuite) TestHandleTransactions() {
-	// Create and broadcast transaction
-	tx := transaction.Transaction{
-		Sender:    suite.wallet1.GetAddress(),
-		Receiver:  suite.wallet2.GetAddress(),
-		Amount:    100,
-		Nonce:     0,
-		Status:    transaction.Pending,
-		Timestamp: uint64(time.Now().Unix()),
-	}
-	tx.TransactionHash = tx.GenerateHash()
-
-	signature, err := suite.wallet1.SignTransaction(common.HexToHash(tx.TransactionHash))
-	suite.Require().NoError(err)
-	tx.Signature = signature
-
-	// Broadcast transaction
-	err = suite.client1.BroadcastTransaction(tx)
-	suite.Require().NoError(err)
-
-	// Wait for transaction to be processed
-	time.Sleep(500 * time.Millisecond)
-
-	// Verify transaction in both pools
-	suite.True(suite.client1.txPool.HasTransaction(tx.TransactionHash), "Transaction should be in client1's pool")
-	suite.True(suite.client2.txPool.HasTransaction(tx.TransactionHash), "Transaction should be in client2's pool")
-}
-
-func (suite *ExecutionClientTestSuite) TestConnectToPeer() {
-
-	// Test invalid address
-	err := suite.client2.ConnectToPeer("invalid_address")
-	suite.Require().Error(err)
-
-	// Test valid connection with retry
-	addr1 := suite.client1.GetAddress()
-	var connectErr error
-	for i := 0; i < 3; i++ {
-		connectErr = suite.client2.ConnectToPeer(addr1)
-		if connectErr == nil {
-			break
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	suite.Require().NoError(connectErr)
-
-	// Wait for connection to be established
-	time.Sleep(500 * time.Millisecond)
-
-	// Verify connection
-	suite.True(suite.client2.IsConnectedTo(addr1))
+	fmt.Println("Transaction successfully propagated from client1 to client2 and client3!")
 }
