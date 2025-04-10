@@ -40,12 +40,14 @@ make_request() {
 
 # Get Node 1's peer ID
 echo -e "\n${GREEN}Getting Node 1's peer ID...${NC}"
-NODE1_PEER_ID=$(curl -s "$NODE1_URL/node/id")
+NODE1_RESPONSE=$(curl -s "$NODE1_URL/node/id")
+NODE1_PEER_ID=$(echo $NODE1_RESPONSE | jq -r '.peerID')
 echo "Node 1 Peer ID: $NODE1_PEER_ID"
 
 # Connect Node 2 to Node 1
 echo -e "\n${GREEN}Connecting Node 2 to Node 1...${NC}"
-make_request "$NODE2_URL/test/peer/connect" "POST" "{\"peerAddr\":\"$NODE1_PEER_ID\"}" "Connecting Node 2 to Node 1"
+CONNECT_DATA="{\"peerID\":\"$NODE1_PEER_ID\"}"
+make_request "$NODE2_URL/test/peer/connect" "POST" "$CONNECT_DATA" "Connecting Node 2 to Node 1"
 
 # Wait for connection to establish
 echo -e "\n${GREEN}Waiting for connection to establish...${NC}"
