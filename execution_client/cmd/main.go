@@ -28,11 +28,13 @@ func main() {
 	logger.Info("Starting execution client node...")
 
 	// Get configuration from environment
-	dataDir := getEnv("DATA_DIR", "./ChainData/node2")
+	dataDir := getEnv("DATA_DIR", "./chain_data/node0")
 	httpPort := getEnv("HTTP_PORT", "8080")
 	harborPort := getEnv("HARBOR_PORT", "50050")
 	listenAddr := getEnv("LISTEN_ADDR", "/ip4/127.0.0.1/tcp/0")
 	validatorKey := getEnv("VALIDATOR_PRIVATE_KEY", "")
+
+	walletsPath := getEnv("WALLETS_PATH", "chain_data/genesis_data/initial_users/mock_wallets.json")
 
 	// Validate required configuration
 	if validatorKey == "" {
@@ -60,7 +62,7 @@ func main() {
 	}
 	defer storage.Close()
 
-	addresses, balances := getAddressFromMockWallets()
+	addresses, balances := getAddressFromMockWallets(walletsPath)
 
 	// Create blockchain with initial validator account
 	chain := blockchain.NewBlockchain(storage, addresses, balances)
@@ -149,10 +151,10 @@ func waitForInterrupt(logger *logrus.Logger, client *execution_client.ExecutionC
 }
 
 // Get the address from mock_wallets.json
-func getAddressFromMockWallets() ([]string, []uint64) {
+func getAddressFromMockWallets(path string) ([]string, []uint64) {
 	// Read the JSON file
-	data, err := os.ReadFile("initial_users/mock_wallets.json")
-	
+	data, err := os.ReadFile(path)
+
 	if err != nil {
 		log.Fatalf("Error reading wallets file: %v", err)
 	}

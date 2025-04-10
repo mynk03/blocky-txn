@@ -41,13 +41,13 @@ make_request() {
 # Create a test transaction
 echo -e "\n${GREEN}Creating test transaction...${NC}"
 TX_DATA='{
-    "transactionHash": "2832893f394b8c90e43c3100e2334c2fe843d77aa957b39e64884aed9be12a57",
-    "sender": "0x186Dbe76F6B2022b518B4cA42617Ed827aeB7278",
-    "receiver": "0xF2bE31c1B5EA7C0AB7C1cBD7609ecF511c8a3CD0",
+    "transactionHash": "4e78eac9860d8596e442b3370dd2021ebdf178ed372161804927caef0076620f",
+    "sender": "0x6eCD8F1B06B53831Ada85Ee7Ee1F3d5be6ef4c98",
+    "receiver": "0x915767829d0bE617726342D33Be8bB72099a1d65",
     "amount": 10,
     "nonce": 1,
-    "timestamp": 1744284080,
-    "signature": "a9ddeb2f1a2c7111093a260b8045e37c9dc1fdd03f3e472b8df74b2f773b6ca47485bbf186911dc9d0fabd66aa705121c4ea941aee21cfebadcac02288db25ad01"
+    "timestamp": 1744294774,
+    "signature": "e9005501b208eb1f352975119aae5b40a019b884c2be730acf04245371c0da1b6303c12bc9d2ef145fd1b33b25e24a6cb8e4db1c82a2f265ad8ab3d8d072957c00"
   }'
 
 # Send transaction to Node 1
@@ -55,7 +55,7 @@ make_request "$NODE1_URL/transaction" "POST" "$TX_DATA" "Sending transaction to 
 
 # Wait for transaction to be broadcasted
 echo -e "\n${GREEN}Waiting for transaction to be broadcasted...${NC}"
-sleep 2
+sleep 5
 
 # Check Node 1's transaction pool
 make_request "$NODE1_URL/transactions" "GET" "" "Checking Node 1's transaction pool"

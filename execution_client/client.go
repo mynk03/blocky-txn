@@ -27,7 +27,7 @@ const (
 	TopicName = "execution"
 
 	// DiscoveryInterval is how often to look for peers
-	DiscoveryInterval = 1 * time.Minute
+	DiscoveryInterval = 5 * time.Second
 )
 
 // ExecutionClient manages the p2p network for consensus algorithms
@@ -285,6 +285,11 @@ func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
 
 	if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
 		n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
+	} else {
+		n.c.logger.WithFields(logrus.Fields{
+			"peerID": pi.ID.String(),
+			"addrs":  pi.Addrs,
+		}).Info("Connected to peer")
 	}
 }
 
@@ -296,7 +301,7 @@ func (c *ExecutionClient) GetAddress() string {
 // GetPeers returns the list of connected peer addresses
 func (c *ExecutionClient) GetPeers() []string {
 	peers := c.host.Network().Peers()
-	
+
 	fmt.Println("peers: ", peers)
 
 	peerAddrs := make([]string, 0, len(peers))
