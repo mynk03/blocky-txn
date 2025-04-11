@@ -29,11 +29,6 @@ func (pool *TransactionPool) AddTransaction(tx Transaction) error {
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
 
-	// Validate transaction
-	if status, err := tx.Validate(); !status {
-		return err
-	}
-
 	// Check if transaction already exists
 	if _, exists := pool.transactions[tx.TransactionHash]; exists {
 		return ErrDuplicateTransaction

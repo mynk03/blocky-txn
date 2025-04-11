@@ -112,13 +112,6 @@ func (suite *TransactionPoolTestSuite) TestAddTransaction() {
 	suite.Contains(suite.tp.GetAllTransactions(), tx1)
 }
 
-func (suite *TransactionPoolTestSuite) TestAddInvalidTransaction() {
-	txInvalid := Transaction{TransactionHash: "invalid"}
-	err := suite.tp.AddTransaction(txInvalid)
-	suite.Error(err)
-	suite.NotContains(suite.tp.GetAllTransactions(), txInvalid)
-}
-
 func (suite *TransactionPoolTestSuite) TestRemoveTransaction() {
 	// Create a test transaction
 	tx := Transaction{
@@ -258,6 +251,21 @@ func (suite *TransactionPoolTestSuite) TestGetTransactionByHashNonExistent() {
 // Test related to the transaction.go
 
 func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
+
+	// Create a test state trie
+	stateTrie := state.NewMptTrie()
+
+	// Create a test account with sufficient balance
+	account := state.Account{
+		Balance: 1000,
+		Nonce:   0,
+	}
+	err := stateTrie.PutAccount(common.HexToAddress(user1), &account)
+	suite.NoError(err)
+
+
+
+
 	// Test valid transaction
 	tx := Transaction{
 		Sender:      common.HexToAddress(user1),
@@ -268,7 +276,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
 		Timestamp:   1234567890,
 	}
 	tx.TransactionHash = tx.GenerateHash()
-	valid, err := tx.Validate()
+	valid, err := tx.ValidateWithState(stateTrie)
 	suite.True(valid)
 	suite.NoError(err)
 
@@ -276,7 +284,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
 	txEmptyFrom := tx
 	txEmptyFrom.Sender = common.Address{}
 	txEmptyFrom.TransactionHash = txEmptyFrom.GenerateHash()
-	valid, err = txEmptyFrom.Validate()
+	valid, err = txEmptyFrom.ValidateWithState(stateTrie)
 	suite.False(valid)
 	suite.Equal(ErrInvalidSender, err)
 
@@ -284,7 +292,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
 	txEmptyTo := tx
 	txEmptyTo.Receiver = common.Address{}
 	txEmptyTo.TransactionHash = txEmptyTo.GenerateHash()
-	valid, err = txEmptyTo.Validate()
+	valid, err = txEmptyTo.ValidateWithState(stateTrie)
 	suite.False(valid)
 	suite.Equal(ErrInvalidRecipient, err)
 
@@ -292,7 +300,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
 	txZeroAmount := tx
 	txZeroAmount.Amount = 0
 	txZeroAmount.TransactionHash = txZeroAmount.GenerateHash()
-	valid, err = txZeroAmount.Validate()
+	valid, err = txZeroAmount.ValidateWithState(stateTrie)
 	suite.False(valid)
 	suite.Equal(ErrInvalidAmount, err)
 }

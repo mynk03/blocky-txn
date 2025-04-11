@@ -64,6 +64,9 @@ func (t *Transaction) Verify() (bool, error) {
 	// Convert the recovered public key to an address
 	recoveredAddr := common.BytesToAddress(ethcrypto.Keccak256(publicKeyBytes[1:])[12:])
 
+	fmt.Println("Recovered address: ", recoveredAddr)
+	fmt.Println("Sender address: ", t.Sender)
+
 	// Compare the recovered address with the sender's address
 	matches := recoveredAddr == t.Sender
 	return matches, nil
@@ -72,8 +75,16 @@ func (t *Transaction) Verify() (bool, error) {
 // ValidateWithState validates the transaction with state
 func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) {
 	// First check basic validation
-	if status, err := t.Validate(); !status {
-		return false, err
+	if t.Sender == (common.Address{}) {
+		return false, ErrInvalidSender
+	}
+
+	if t.Receiver == (common.Address{}) {
+		return false, ErrInvalidRecipient
+	}
+
+	if t.Amount <= 0 {
+		return false, ErrInvalidAmount
 	}
 
 	// Check sender account exists and has sufficient funds
@@ -88,23 +99,6 @@ func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) 
 
 	if t.Nonce != senderAccount.Nonce+1 {
 		return false, ErrInvalidNonce
-	}
-
-	return true, nil
-}
-
-// Validate validates the transaction
-func (t *Transaction) Validate() (bool, error) {
-	if t.Sender == (common.Address{}) {
-		return false, ErrInvalidSender
-	}
-
-	if t.Receiver == (common.Address{}) {
-		return false, ErrInvalidRecipient
-	}
-
-	if t.Amount <= 0 {
-		return false, ErrInvalidAmount
 	}
 
 	return true, nil
