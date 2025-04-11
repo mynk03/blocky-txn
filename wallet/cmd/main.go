@@ -47,7 +47,6 @@ func getEnv(key, defaultValue string) string {
 }
 
 func main() {
-
 	// Load .env file
 	if err := godotenv.Load(); err != nil {
 		logrus.Warn("No .env file found")
@@ -88,7 +87,7 @@ func main() {
 	wallets := createAndStoreWallets(totalWallets, walletsPath)
 
 	// read wallets from a json file
-	walletsFromJSON := readWallets(walletsPath)
+	walletsFromJSON := ReadWallets(walletsPath)
 
 	// create transactions and store them in a json file
 	transactions := createTransactions(wallets, walletsFromJSON, totalTransactions)
@@ -103,11 +102,7 @@ func createAndStoreWallets(totalWallets int, walletsPath string) []WalletData {
 	// Generate totalWallets wallets
 	wallets := make([]WalletData, totalWallets)
 	for i := 0; i < totalWallets; i++ {
-		wallet, err := wallet.NewMockWallet()
-		if err != nil {
-			fmt.Printf("Error creating wallet %d: %v\n", i+1, err)
-			return nil
-		}
+		wallet, _ := wallet.NewMockWallet()
 
 		wallets[i] = WalletData{
 			Wallet:     *wallet,
@@ -135,7 +130,7 @@ func createAndStoreWallets(totalWallets int, walletsPath string) []WalletData {
 }
 
 // read wallets from a json file
-func readWallets(walletsPath string) []WalletData {
+func ReadWallets(walletsPath string) []WalletData {
 	fmt.Println("Reading wallets from a json file ...")
 	wallets := make([]WalletData, 0)
 
@@ -161,7 +156,7 @@ func createTransactions(wallets []WalletData, walletsFromJSON []WalletData, tota
 	// Generate transactions
 	transactions := make([]TransactionRequest, totalTransactions)
 	for i := 0; i < totalTransactions; i++ {
-		sender := wallets[i]
+		sender := wallets[i%totalWallets]
 		receiver := wallets[(i+1)%totalWallets] // Send to next wallet, wrapping around
 
 		// Create a transaction object for hash generation
@@ -169,7 +164,7 @@ func createTransactions(wallets []WalletData, walletsFromJSON []WalletData, tota
 			Sender:    common.HexToAddress(sender.Wallet.GetAddress().Hex()),
 			Receiver:  common.HexToAddress(receiver.Wallet.GetAddress().Hex()),
 			Amount:    10,
-			Nonce:     sender.Nonce,
+			Nonce:     sender.Nonce + 1,
 			Timestamp: uint64(time.Now().Unix()),
 		}
 
@@ -188,37 +183,29 @@ func createTransactions(wallets []WalletData, walletsFromJSON []WalletData, tota
 		tx.Signature = signature
 
 		// Verify the transaction signature
-		valid, err := tx.Verify()
-		if err != nil {
-			fmt.Printf("Error verifying transaction: %v\n", err)
-			return nil
-		}
-
-		// Convert signature to hex string for JSON storage
-		signatureHex := hex.EncodeToString(signature)
-
-		// Create transaction request
-		txRequest := TransactionRequest{
-			TransactionHash: txHash,
-			Sender:          sender.Wallet.GetAddress().Hex(),
-			Receiver:        receiver.Wallet.GetAddress().Hex(),
-			Amount:          10,
-			Nonce:           sender.Nonce + 1,
-			Timestamp:       uint64(time.Now().Unix()),
-			Signature:       signatureHex,
-		}
+		valid, _ := tx.Verify()
 
 		// Verify the transaction signature
-
 		if !valid {
-			fmt.Printf("Invalid signature for transaction %d\n", i+1)
 			return nil
 		}
 
+		// create a transaction request
+		txRequest := TransactionRequest{
+			TransactionHash: tx.TransactionHash,
+			Sender:          tx.Sender.Hex(),
+			Receiver:        tx.Receiver.Hex(),
+			Amount:          tx.Amount,
+			Nonce:           tx.Nonce,
+			Timestamp:       tx.Timestamp,
+			Signature:       hex.EncodeToString(tx.Signature),
+		}
+
+		// save the transaction request in the transactions array
 		transactions[i] = txRequest
 
-		// Increment nonce for next transaction
-		wallets[i].Nonce++
+		// Increment nonce for next transaction // TODO: save the nonce in json file
+		wallets[i%totalWallets].Nonce++
 	}
 
 	return transactions

@@ -6,6 +6,7 @@ import (
 	"blockchain-simulator/transaction"
 	"crypto/ecdsa"
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -19,9 +20,7 @@ import (
 
 func main() {
 	// Load .env file
-	if err := godotenv.Load(); err != nil {
-		logrus.Warn("No .env file found")
-	}
+	godotenv.Load()
 
 	// Setup logger
 	logger := setupLogger(getEnv("LOG_LEVEL", "info"))
@@ -32,14 +31,11 @@ func main() {
 	httpPort := getEnv("HTTP_PORT", "8080")
 	harborPort := getEnv("HARBOR_PORT", "50050")
 	listenAddr := getEnv("LISTEN_ADDR", "/ip4/127.0.0.1/tcp/0")
-	validatorKey := getEnv("VALIDATOR_PRIVATE_KEY", "")
+	validatorKey := getEnv("VALIDATOR_PRIVATE_KEY", "9ed1cbd1eaf58283b752faf8e967ed74538624b023eee4a3469346e34fd22036") // default private key for validator
+
+	fmt.Println("validatorKey: ", validatorKey)
 
 	walletsPath := getEnv("WALLETS_PATH", "chain_data/genesis_data/initial_users/mock_wallets.json")
-
-	// Validate required configuration
-	if validatorKey == "" {
-		logger.Fatal("VALIDATOR_PRIVATE_KEY is required")
-	}
 
 	// Create data directory if it doesn't exist
 	if err := os.MkdirAll(dataDir, 0755); err != nil {

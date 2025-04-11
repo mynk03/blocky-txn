@@ -43,16 +43,14 @@ func (s *Server) addTransaction(c *gin.Context) {
 		return
 	}
 
-	fmt.Println("req: ", req)
-
-	// Validate addresses
+	// Validate sender's addresses
 	sender := common.HexToAddress(req.Sender)
 	if sender == (common.Address{}) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid sender address"})
 		return
 	}
-	fmt.Println("sender: ", sender)
 
+	// Validate receiver's addresses
 	receiver := common.HexToAddress(req.Receiver)
 	if receiver == (common.Address{}) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid receiver address"})
@@ -82,26 +80,25 @@ func (s *Server) addTransaction(c *gin.Context) {
 		Status:          transaction.Pending,
 		Signature:       signature,
 	}
-	fmt.Println("Transaction: ", tx)
 
 	// validate transaction hash
-	if tx.TransactionHash == tx.GenerateHash() {
+	if tx.TransactionHash != tx.GenerateHash() {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction hash mismatch"})
 		return
 	}
 
-	// // Verify signature
-	// valid, err := tx.Verify()
-	// if err != nil {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed: " + err.Error()})
-	// 	return
-	// }
+	// Verify signature
+	valid, err := tx.Verify()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed: " + err.Error()})
+		return
+	}
 
-	// // if signature is not valid, return error
-	// if !valid {
-	// 	c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed"})
-	// 	return
-	// }
+	// if signature is not valid, return error
+	if !valid {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "transaction signature verification failed"})
+		return
+	}
 
 	// Validate transaction with current state of node
 	if status, err := tx.ValidateWithState(s.client.chain.StateTrie); !status {

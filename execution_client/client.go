@@ -51,6 +51,9 @@ type ExecutionClient struct {
 	seenMessages map[string]bool
 	seenMutex    sync.RWMutex
 
+	// Channels for connection handling
+	connectCh chan peer.AddrInfo
+
 	logger *logrus.Logger
 }
 
@@ -109,6 +112,7 @@ func NewExecutionClient(
 		chain:         chain,
 		transactionCh: make(chan *transaction.Transaction, 100),
 		seenMessages:  make(map[string]bool),
+		connectCh:     make(chan peer.AddrInfo, 100),
 		logger:        logger,
 	}
 
@@ -162,6 +166,9 @@ func (c *ExecutionClient) Start(harborServerPort string, httpServer *Server, htt
 			c.logger.WithError(err).Error("Failed to start Harbor RPC server")
 		}
 	}()
+
+	// Start connection handling goroutine
+	go c.handleConnections(c.connectCh)
 
 	c.logger.Info("Execution client started successfully")
 	return nil
@@ -218,23 +225,23 @@ func (c *ExecutionClient) handleTransactions() {
 			continue
 		}
 
-		// // Verify the transaction signature
-		// valid, err := tx.Verify()
-		// if err != nil {
-		// 	c.logger.WithError(err).WithFields(logrus.Fields{
-		// 		"hash":   tx.TransactionHash,
-		// 		"sender": tx.Sender.Hex(),
-		// 	}).Error("Transaction verification failed")
-		// 	continue
-		// }
+		// Verify the transaction signature
+		valid, err := tx.Verify()
+		if err != nil {
+			c.logger.WithError(err).WithFields(logrus.Fields{
+				"hash":   tx.TransactionHash,
+				"sender": tx.Sender.Hex(),
+			}).Error("Transaction verification failed")
+			continue
+		}
 
-		// if !valid {
-		// 	c.logger.WithFields(logrus.Fields{
-		// 		"hash":   tx.TransactionHash,
-		// 		"sender": tx.Sender.Hex(),
-		// 	}).Error("Invalid transaction signature")
-		// 	continue
-		// }
+		if !valid {
+			c.logger.WithFields(logrus.Fields{
+				"hash":   tx.TransactionHash,
+				"sender": tx.Sender.Hex(),
+			}).Error("Invalid transaction signature")
+			continue
+		}
 
 		// Check if we've seen this transaction before
 		c.seenMutex.RLock()
@@ -276,6 +283,8 @@ type discoveryNotifee struct {
 	c *ExecutionClient
 }
 
+// TODO: need to fix the connection handling automatically
+
 // HandlePeerFound is called when a new peer is discovered
 func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
 	n.c.logger.WithFields(logrus.Fields{
@@ -283,14 +292,36 @@ func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
 		"addrs":  pi.Addrs,
 	}).Info("Discovered new peer")
 
-	// if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
-	// 	n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
-	// } else {
-	// 	n.c.logger.WithFields(logrus.Fields{
-	// 		"peerID": pi.ID.String(),
-	// 		"addrs":  pi.Addrs,
-	// 	}).Info("Connected to peer")
-	// }
+	if pi.ID == n.c.host.ID() { // Skip self
+		return
+	}
+
+	// Check if already connected
+	if n.c.host.Network().Connectedness(pi.ID) == network.Connected {
+		return
+	}
+
+	// Add to channel
+	n.c.connectCh <- pi
+}
+
+// Handling connections from the channel
+func (c *ExecutionClient) handleConnections(connectCh chan peer.AddrInfo) {
+	for {
+		pi := <-connectCh
+		if pi.ID == c.host.ID() || pi.ID == "" {
+			continue
+		}
+
+		if err := c.host.Connect(c.ctx, pi); err != nil {
+			c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
+		} else {
+			c.logger.WithFields(logrus.Fields{
+				"peerID": pi.ID.String(),
+				"addrs":  pi.Addrs,
+			}).Info("Connected to peer")
+		}
+	}
 }
 
 // GetAddress returns the multiaddress of the execution client
