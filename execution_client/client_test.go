@@ -132,6 +132,11 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 	err = suite.client3.Start("5053", server3, "8083")
 	suite.Require().NoError(err, "Failed to start client3")
 	time.Sleep(500 * time.Millisecond) // Wait for client3 to fully initialize
+
+	// connect the clients
+	suite.client1.ConnectToPeer(suite.client2.GetAddress())
+	suite.client1.ConnectToPeer(suite.client3.GetAddress())
+	suite.client2.ConnectToPeer(suite.client3.GetAddress())
 }
 
 func (suite *ExecutionClientTestSuite) TearDownTest() {
@@ -200,7 +205,7 @@ func (suite *ExecutionClientTestSuite) TestTransactionPropagation() {
 	suite.Require().NoError(err, "Failed to broadcast transaction")
 
 	// Wait for transaction to be processed
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// Verify transaction was added to all clients' transaction pools
 	fmt.Println("Verifying transaction in all clients' txn pools...")
