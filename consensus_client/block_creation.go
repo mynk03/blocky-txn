@@ -19,16 +19,11 @@ func (c *ConsensusClient) RequestBlockFromExecutionClient() (*blockchain.Block, 
 
 	c.logger.Info("Requesting block creation via Harbor API")
 
-	// Get the last block hash to build upon (if any)
-	var prevBlockHash string
-	// In a real implementation, you would store and track the latest blocks
-	// This is a simplified implementation
-
 	// Request block creation with a maximum of 100 transactions
 	// In a real implementation, you might want to configure this
 	maxTransactions := uint32(100)
 
-	block, err := c.harborClient.RequestBlockCreation(c.ctx, c.selfAddress, prevBlockHash, maxTransactions)
+	block, err := c.harborClient.RequestBlockCreation(c.ctx, c.selfAddress, maxTransactions)
 	if err != nil {
 		return nil, fmt.Errorf("failed to request block via Harbor API: %w", err)
 	}

@@ -67,8 +67,8 @@ type mockHarborClient struct {
 	mock.Mock
 }
 
-func (m *mockHarborClient) RequestBlockCreation(ctx context.Context, validatorAddress common.Address, prevBlockHash string, maxTransactions uint32) (*blockchain.Block, error) {
-	args := m.Called(ctx, validatorAddress, prevBlockHash, maxTransactions)
+func (m *mockHarborClient) RequestBlockCreation(ctx context.Context, validatorAddress common.Address, maxTransactions uint32) (*blockchain.Block, error) {
+	args := m.Called(ctx, validatorAddress, maxTransactions)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

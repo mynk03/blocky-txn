@@ -161,7 +161,7 @@ func NewConsensusClient(
 	}
 
 	// Create a new Proof of Stake consensus instance with default parameters
-	slotDuration := 5 * time.Second
+	slotDuration := 20 * time.Second
 	minStake := uint64(100)
 	baseReward := uint64(10)
 	posConsensus := consensus.NewProofOfStake(slotDuration, minStake, baseReward)

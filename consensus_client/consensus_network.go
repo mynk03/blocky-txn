@@ -93,10 +93,10 @@ func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
 	n.c.logger.WithFields(logrus.Fields{
 		"peerID": pi.ID.String(),
 		"addrs":  pi.Addrs,
-	}).Info("Discovered new peer")
+	}).Info("Discovered new consensus peer")
 
 	if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
-		n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
+		n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered consensus peer")
 	}
 }
 
