@@ -33,12 +33,10 @@ message ValidationResult {
 
 // BlockCreationRequest is a request to create a new block from the transaction pool
 message BlockCreationRequest {
-  // Optional previous block hash to build upon
-  string prev_block_hash = 1;
   // Maximum number of transactions to include (0 means unlimited)
-  uint32 max_transactions = 2;
+  uint32 max_transactions = 1;
   // Address of the validator creating this block
-  string validator_address = 3;
+  string validator_address = 2;
 }
 
 // BlockCreationResponse contains the newly created block
