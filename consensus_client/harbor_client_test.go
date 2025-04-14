@@ -180,12 +180,11 @@ func TestRequestBlockCreation(t *testing.T) {
 	// Setup expectations on the mock
 	mockAPI.On("CreateBlock", mock.Anything, mock.MatchedBy(func(req *harbor.BlockCreationRequest) bool {
 		return req.ValidatorAddress == validatorAddr.Hex() &&
-			req.PrevBlockHash == prevBlockHash &&
 			req.MaxTransactions == maxTransactions
 	})).Return(mockResp, nil).Once()
 
 	// Call the method
-	block, err := client.RequestBlockCreation(ctx, validatorAddr, prevBlockHash, maxTransactions)
+	block, err := client.RequestBlockCreation(ctx, validatorAddr, maxTransactions)
 	assert.NoError(t, err, "RequestBlockCreation should not return an error")
 	assert.NotNil(t, block, "Block should not be nil")
 	assert.Equal(t, uint64(1), block.Index, "Block index should match")
@@ -203,7 +202,7 @@ func TestRequestBlockCreation(t *testing.T) {
 
 	// Case 2: Error from API client
 	mockAPI.On("CreateBlock", mock.Anything, mock.Anything).Return(nil, errors.New("API error")).Once()
-	block, err = client.RequestBlockCreation(ctx, validatorAddr, prevBlockHash, maxTransactions)
+	block, err = client.RequestBlockCreation(ctx, validatorAddr, maxTransactions)
 	assert.Error(t, err, "RequestBlockCreation should return an error when API client fails")
 	assert.Nil(t, block, "Block should be nil when API client fails")
 	assert.Contains(t, err.Error(), "failed to request block creation", "Error message should indicate API client failure")
@@ -212,7 +211,7 @@ func TestRequestBlockCreation(t *testing.T) {
 	mockResp.Block = nil
 	mockResp.ErrorMessage = "execution error"
 	mockAPI.On("CreateBlock", mock.Anything, mock.Anything).Return(mockResp, nil).Once()
-	block, err = client.RequestBlockCreation(ctx, validatorAddr, prevBlockHash, maxTransactions)
+	block, err = client.RequestBlockCreation(ctx, validatorAddr, maxTransactions)
 	assert.Error(t, err, "RequestBlockCreation should return an error when response contains error message")
 	assert.Nil(t, block, "Block should be nil when response contains error message")
 	assert.Contains(t, err.Error(), "execution client error", "Error message should indicate execution client error")
@@ -220,7 +219,7 @@ func TestRequestBlockCreation(t *testing.T) {
 	// Case 4: Nil block in response (no transactions available)
 	mockResp.ErrorMessage = ""
 	mockAPI.On("CreateBlock", mock.Anything, mock.Anything).Return(mockResp, nil).Once()
-	block, err = client.RequestBlockCreation(ctx, validatorAddr, prevBlockHash, maxTransactions)
+	block, err = client.RequestBlockCreation(ctx, validatorAddr, maxTransactions)
 	assert.Error(t, err, "RequestBlockCreation should return an error when no block is created")
 	assert.Nil(t, block, "Block should be nil when no block is created")
 	assert.Contains(t, err.Error(), "no block was created", "Error message should indicate no block was created")

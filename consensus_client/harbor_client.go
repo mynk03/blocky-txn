@@ -19,7 +19,7 @@ import (
 
 // ExecutionClient represents the interface for interacting with the execution client (Harbor service)
 type ExecutionClient interface {
-	RequestBlockCreation(ctx context.Context, validatorAddress common.Address, prevBlockHash string, maxTransactions uint32) (*blockchain.Block, error)
+	RequestBlockCreation(ctx context.Context, validatorAddress common.Address, maxTransactions uint32) (*blockchain.Block, error)
 	ValidateBlock(ctx context.Context, block *blockchain.Block) (bool, error)
 	Close() error
 }
@@ -94,10 +94,9 @@ func (c *HarborClient) Close() error {
 }
 
 // RequestBlockCreation asks the execution client to create a new block from its transaction pool
-func (c *HarborClient) RequestBlockCreation(ctx context.Context, validatorAddress common.Address, prevBlockHash string, maxTransactions uint32) (*blockchain.Block, error) {
+func (c *HarborClient) RequestBlockCreation(ctx context.Context, validatorAddress common.Address, maxTransactions uint32) (*blockchain.Block, error) {
 	c.logger.WithFields(logrus.Fields{
 		"validatorAddress": validatorAddress.Hex(),
-		"prevBlockHash":    prevBlockHash,
 		"maxTransactions":  maxTransactions,
 	}).Info("Requesting block creation from execution client via Harbor")
 
@@ -108,7 +107,6 @@ func (c *HarborClient) RequestBlockCreation(ctx context.Context, validatorAddres
 	// Make the gRPC call
 	resp, err := c.client.CreateBlock(timeoutCtx, &harbor.BlockCreationRequest{
 		ValidatorAddress: validatorAddress.Hex(),
-		PrevBlockHash:    prevBlockHash,
 		MaxTransactions:  maxTransactions,
 	})
 	if err != nil {

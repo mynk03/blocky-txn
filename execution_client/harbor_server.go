@@ -5,6 +5,7 @@ import (
 	"blockchain-simulator/proto/harbor"
 	"blockchain-simulator/transaction"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"net"
 
@@ -17,9 +18,9 @@ import (
 // HarborServer implements the Harbor API server
 type HarborServer struct {
 	harbor.UnimplementedHarborAPIServer
-	txPool *transaction.TransactionPool
-	chain  *blockchain.Blockchain
-	logger *logrus.Logger
+	txPool        *transaction.TransactionPool
+	chain         *blockchain.Blockchain
+	logger        *logrus.Logger
 	validatorAddr string
 }
 
@@ -34,9 +35,9 @@ func NewHarborServer(txPool *transaction.TransactionPool, chain *blockchain.Bloc
 	}
 
 	return &HarborServer{
-		txPool: txPool,
-		chain:  chain,
-		logger: logger,
+		txPool:        txPool,
+		chain:         chain,
+		logger:        logger,
 		validatorAddr: validatorAddr,
 	}
 }
@@ -44,9 +45,8 @@ func NewHarborServer(txPool *transaction.TransactionPool, chain *blockchain.Bloc
 // CreateBlock implements the HarborAPI.CreateBlock RPC method
 func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreationRequest) (*harbor.BlockCreationResponse, error) {
 	s.logger.WithFields(logrus.Fields{
-		"prev_block_hash": req.PrevBlockHash,
-		"max_txs":         req.MaxTransactions,
-		"validator":       req.ValidatorAddress,
+		"max_txs":   req.MaxTransactions,
+		"validator": req.ValidatorAddress,
 	}).Info("Received CreateBlock request")
 
 	// validate the validator address
@@ -72,12 +72,12 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 	// Create new block
 	prevBlock := s.chain.GetLatestBlock()
 
-	// check the validator State are updated
-	if req.PrevBlockHash != prevBlock.Hash {
-		return &harbor.BlockCreationResponse{
-			ErrorMessage: "Previous block hash does not match",
-		}, nil
-	}
+	// // check the validator State are updated
+	// if req.PrevBlockHash != prevBlock.Hash {
+	// 	return &harbor.BlockCreationResponse{
+	// 		ErrorMessage: "Previous block hash does not match",
+	// 	}, nil
+	// }
 
 	// create a new block with the transactions
 	newBlock := blockchain.CreateBlock(transactions, prevBlock)
@@ -115,13 +115,19 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 
 	// Convert transactions to protobuf format
 	for i, tx := range newBlock.Transactions {
+		fmt.Println("sender: ", tx.Sender.Hex())
+		fmt.Println("receiver: ", tx.Receiver.Hex())
+		fmt.Println("amount: ", tx.Amount)
+		fmt.Println("nonce: ", tx.Nonce)
+		fmt.Println("transaction hash: ", tx.TransactionHash)
+		fmt.Println("signature: ", tx.Signature)
 		blockData.Transactions[i] = &harbor.TransactionData{
 			From:            tx.Sender.Hex(),
 			To:              tx.Receiver.Hex(),
 			Amount:          tx.Amount,
 			Nonce:           tx.Nonce,
 			TransactionHash: tx.TransactionHash,
-			Signature:       string(tx.Signature),
+			Signature:       hex.EncodeToString(tx.Signature),
 		}
 	}
 
