@@ -6,7 +6,7 @@ package consensus_client
 import (
 	"blockchain-simulator/blockchain"
 	"blockchain-simulator/proto/harbor"
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"context"
 	"errors"
 	"testing"
@@ -194,8 +194,8 @@ func TestRequestBlockCreation(t *testing.T) {
 	assert.Equal(t, "stateRoot123", block.StateRoot, "Block state root should match")
 	assert.Equal(t, validatorAddr.Hex(), block.Validator, "Block validator should match")
 	assert.Len(t, block.Transactions, 1, "Block should have 1 transaction")
-	assert.Equal(t, common.HexToAddress("0x2222222222222222222222222222222222222222"), block.Transactions[0].From, "Transaction from should match")
-	assert.Equal(t, common.HexToAddress("0x3333333333333333333333333333333333333333"), block.Transactions[0].To, "Transaction to should match")
+	assert.Equal(t, common.HexToAddress("0x2222222222222222222222222222222222222222"), block.Transactions[0].Sender, "Transaction from should match")
+	assert.Equal(t, common.HexToAddress("0x3333333333333333333333333333333333333333"), block.Transactions[0].Receiver, "Transaction to should match")
 	assert.Equal(t, uint64(100), block.Transactions[0].Amount, "Transaction amount should match")
 	assert.Equal(t, uint64(1), block.Transactions[0].Nonce, "Transaction nonce should match")
 	assert.Equal(t, "tx123", block.Transactions[0].TransactionHash, "Transaction hash should match")
@@ -247,10 +247,10 @@ func TestValidateBlock(t *testing.T) {
 		Hash:      "0000000000000000000000000000000000000000000000000000000000000001",
 		StateRoot: "stateRoot123",
 		Validator: validatorAddr.Hex(),
-		Transactions: []transactions.Transaction{
+		Transactions: []transaction.Transaction{
 			{
-				From:            senderAddr,
-				To:              receiverAddr,
+				Sender:            senderAddr,
+				Receiver:              receiverAddr,
 				Amount:          100,
 				Nonce:           1,
 				TransactionHash: "tx123",

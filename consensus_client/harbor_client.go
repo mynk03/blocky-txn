@@ -6,7 +6,7 @@ package consensus_client
 import (
 	"blockchain-simulator/blockchain"
 	"blockchain-simulator/proto/harbor"
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"context"
 	"fmt"
 	"time"
@@ -133,7 +133,7 @@ func (c *HarborClient) RequestBlockCreation(ctx context.Context, validatorAddres
 		Hash:         resp.Block.Hash,
 		StateRoot:    resp.Block.StateRoot,
 		Validator:    resp.Block.Validator,
-		Transactions: make([]transactions.Transaction, 0, len(resp.Block.Transactions)),
+		Transactions: make([]transaction.Transaction, 0, len(resp.Block.Transactions)),
 	}
 
 	// Convert transactions
@@ -149,9 +149,9 @@ func (c *HarborClient) RequestBlockCreation(ctx context.Context, validatorAddres
 			signature = []byte(tx.Signature)
 		}
 
-		domainTx := transactions.Transaction{
-			From:            fromAddr,
-			To:              toAddr,
+		domainTx := transaction.Transaction{
+			Sender:            fromAddr,
+			Receiver:              toAddr,
 			Amount:          tx.Amount,
 			Nonce:           tx.Nonce,
 			TransactionHash: tx.TransactionHash,
@@ -194,8 +194,8 @@ func (c *HarborClient) ValidateBlock(ctx context.Context, block *blockchain.Bloc
 	// Convert transactions
 	for _, tx := range block.Transactions {
 		// Convert addresses to strings
-		fromStr := tx.From.Hex()
-		toStr := tx.To.Hex()
+		fromStr := tx.Sender.Hex()
+		toStr := tx.Receiver.Hex()
 
 		// Convert signature to string if needed
 		var signatureStr string
