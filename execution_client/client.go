@@ -167,9 +167,6 @@ func (c *ExecutionClient) Start(harborServerPort string, httpServer *Server, htt
 		}
 	}()
 
-	// Start connection handling goroutine
-	go c.handleConnections(c.connectCh)
-
 	c.logger.Info("Execution client started successfully")
 	return nil
 }
@@ -283,43 +280,22 @@ type discoveryNotifee struct {
 	c *ExecutionClient
 }
 
-// TODO: need to fix the connection handling automatically
-
 // HandlePeerFound is called when a new peer is discovered
 func (n *discoveryNotifee) HandlePeerFound(pi peer.AddrInfo) {
-	n.c.logger.WithFields(logrus.Fields{
-		"peerID": pi.ID.String(),
-		"addrs":  pi.Addrs,
-	}).Info("Discovered new peer")
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
 
-	if pi.ID == n.c.host.ID() { // Skip self
-		return
-	}
-
-	// Check if already connected
-	if n.c.host.Network().Connectedness(pi.ID) == network.Connected {
-		return
-	}
-
-	// Add to channel
-	n.c.connectCh <- pi
-}
-
-// Handling connections from the channel
-func (c *ExecutionClient) handleConnections(connectCh chan peer.AddrInfo) {
 	for {
-		pi := <-connectCh
-		if pi.ID == c.host.ID() || pi.ID == "" {
-			continue
-		}
-
-		if err := c.host.Connect(c.ctx, pi); err != nil {
-			c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered peer")
-		} else {
-			c.logger.WithFields(logrus.Fields{
-				"peerID": pi.ID.String(),
-				"addrs":  pi.Addrs,
-			}).Info("Connected to peer")
+		select {
+		case <-ticker.C:
+			if err := n.c.host.Connect(n.c.ctx, pi); err != nil {
+				n.c.logger.WithError(err).WithField("peer", pi.ID).Warn("Failed to connect to discovered execution peer")
+				continue
+			}
+			n.c.logger.WithField("peer", pi.ID).Info("Connected to execution peer")
+			return
+		case <-n.c.ctx.Done():
+			return
 		}
 	}
 }
