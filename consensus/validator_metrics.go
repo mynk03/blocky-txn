@@ -18,6 +18,20 @@ const (
 	StatusSlashed
 )
 
+// String returns the string representation of the validator status
+func (s ValidatorStatus) String() string {
+	switch s {
+	case StatusActive:
+		return "active"
+	case StatusProbation:
+		return "probation"
+	case StatusSlashed:
+		return "slashed"
+	default:
+		return "unknown"
+	}
+}
+
 // ValidationMetrics tracks a validator's performance metrics
 type ValidationMetrics struct {
 	BlocksProposed      uint64
