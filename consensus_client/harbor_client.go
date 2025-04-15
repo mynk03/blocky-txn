@@ -24,7 +24,6 @@ type ExecutionClient interface {
 	Close() error
 }
 
-
 // HarborClient handles communication with the execution client via the Harbor gRPC service
 // This is similar to how Ethereum's consensus client communicates with the execution client via the ENGINE API
 type HarborClient struct {
@@ -70,7 +69,7 @@ func NewHarborClient(address string, logger *logrus.Logger) (*HarborClient, erro
 func (c *HarborClient) Connect() error {
 	// Set up connection to the execution client using insecure credentials (for development only)
 	// In production, use proper TLS credentials
-	conn, err := grpc.Dial(c.address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(c.address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return fmt.Errorf("failed to connect to execution client: %w", err)
 	}
@@ -148,8 +147,8 @@ func (c *HarborClient) RequestBlockCreation(ctx context.Context, validatorAddres
 		}
 
 		domainTx := transaction.Transaction{
-			Sender:            fromAddr,
-			Receiver:              toAddr,
+			Sender:          fromAddr,
+			Receiver:        toAddr,
 			Amount:          tx.Amount,
 			Nonce:           tx.Nonce,
 			TransactionHash: tx.TransactionHash,

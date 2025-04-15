@@ -53,7 +53,7 @@ func (c *ConsensusClient) runValidatorAnnouncementLoop() {
 	}
 
 	// Then announce periodically
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(1 * time.Minute)
 	go func() {
 		defer ticker.Stop()
 		for {
