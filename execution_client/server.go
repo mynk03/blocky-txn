@@ -27,6 +27,11 @@ func NewServer(client *ExecutionClient) *Server {
 	router.GET("/test/peers", server.getAllPeers)
 	router.POST("/test/peer/connect", server.connectToPeer)
 
+	//user Account endpoints
+	router.GET("/user/account/:address", server.getUserAccount)
+	router.GET("/user/transaction/:txn_hash", server.getTransactionByHash)
+	router.GET("/user/transactions/:sender_address", server.getUserTransactions)
+
 	return server
 }
 

@@ -167,3 +167,37 @@ func isValidPeerAddress(addr string) bool {
 		len(addr) >= 5 && addr[:5] == "/ip4/" &&
 		strings.Contains(addr, "/p2p/")
 }
+
+// getUserAccount returns the user's account
+func (s *Server) getUserAccount(c *gin.Context) {
+	address := c.Param("address")
+	account, err := s.client.chain.StateTrie.GetAccount(common.HexToAddress(address))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get account: %v", err)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"account": account})
+}
+
+
+// getTransactionByHash returns the transaction by hash
+func (s *Server) getTransactionByHash(c *gin.Context) {
+	hash := c.Param("txn_hash")
+	tx, err := s.client.chain.Storage.GetTransaction(hash)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get transaction: %v", err)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"transaction": tx})
+}
+
+// getUserTransactions returns all transactions by sender address
+func (s *Server) getUserTransactions(c *gin.Context) {
+	address := c.Param("sender_address")
+	transactions, err := s.client.chain.Storage.GetTransactionsBySender(common.HexToAddress(address))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to get transactions: %v", err)})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"transactions": transactions})
+}

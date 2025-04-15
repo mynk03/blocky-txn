@@ -6,6 +6,8 @@ package blockchain
 import (
 	"blockchain-simulator/state"
 	"blockchain-simulator/transaction"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // Storage defines the interface for persistent storage operations in the blockchain.
@@ -26,6 +28,7 @@ type Storage interface {
 	// Transaction Getters
 	GetTransaction(hash string) (transaction.Transaction, error)
 	GetPendingTransactions() ([]transaction.Transaction, error)
+	GetTransactionsBySender(address common.Address) ([]transaction.Transaction, error)
 
 	// Remove Transaction Operations
 	RemoveTransaction(hash string) error

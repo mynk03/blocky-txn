@@ -55,13 +55,6 @@ func (pool *TransactionPool) RemoveTransaction(hash string) error {
 		return errors.New("transaction not found")
 	}
 
-	// Update transaction status and remove it
-	tx := pool.transactions[hash]
-	tx.Status = Success
-	pool.transactions[hash] = tx
-
-	// * need to store succesed transactions
-
 	// remove transaction from pool
 	delete(pool.transactions, hash)
 	return nil

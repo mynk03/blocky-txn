@@ -9,7 +9,9 @@ import (
 	"encoding/json"
 	"log"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/syndtr/goleveldb/leveldb"
+	"github.com/syndtr/goleveldb/leveldb/util"
 )
 
 // LevelDBStorage implements the Storage interface using LevelDB as the underlying storage engine.
@@ -147,6 +149,26 @@ func (s *LevelDBStorage) GetPendingTransactions() ([]transaction.Transaction, er
 	var transactions []transaction.Transaction
 	err = json.Unmarshal(data, &transactions)
 	return transactions, err
+}
+
+// GetTransactionsBySender retrieves all transactions from the database by sender address.
+func (s *LevelDBStorage) GetTransactionsBySender(senderAddress common.Address) ([]transaction.Transaction, error) {
+	var transactions []transaction.Transaction
+	iter := s.db.NewIterator(util.BytesPrefix([]byte(transactionPrefix)), nil)
+	defer iter.Release()
+
+	for iter.Next() {
+		var tx transaction.Transaction
+		if err := json.Unmarshal(iter.Value(), &tx); err != nil {
+			return nil, err
+		}
+		// select the transaction by sender address
+		if tx.Sender == senderAddress {
+			transactions = append(transactions, tx)
+		}
+	}
+
+	return transactions, nil
 }
 
 // RemoveTransaction removes a transaction from the database using its hash.

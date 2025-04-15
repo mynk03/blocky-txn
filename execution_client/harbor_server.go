@@ -72,13 +72,6 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 	// Create new block
 	prevBlock := s.chain.GetLatestBlock()
 
-	// // check the validator State are updated
-	// if req.PrevBlockHash != prevBlock.Hash {
-	// 	return &harbor.BlockCreationResponse{
-	// 		ErrorMessage: "Previous block hash does not match",
-	// 	}, nil
-	// }
-
 	// create a new block with the transactions
 	newBlock := blockchain.CreateBlock(transactions, prevBlock)
 	newBlock.Validator = s.validatorAddr
@@ -97,6 +90,14 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 	txHashes := make([]string, len(newBlock.Transactions))
 	for i, tx := range newBlock.Transactions {
 		txHashes[i] = tx.TransactionHash
+	}
+
+	// update the transaction status to success
+	for _, tx := range transactions {
+		tx.Status = transaction.Success
+
+		// store the txn in memory
+		s.chain.Storage.PutTransaction(tx)
 	}
 
 	// remove the transactions from the txn pool
