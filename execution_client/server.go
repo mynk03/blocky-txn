@@ -18,18 +18,18 @@ func NewServer(client *ExecutionClient) *Server {
 		router: router,
 	}
 
-	// User endpoints
+	// transaction endpoints
 	router.POST("/transaction", server.addTransaction)
-	router.GET("/node/id", server.getNodeId)
-	router.GET("/transactions", server.getTransactions)
-
+	router.GET("/txn/pool/transactions", server.getTransactions)
+	router.GET("/transaction/:txn_hash", server.getTransactionByHash)
+	
 	// Testing endpoints
+	router.GET("/node/id", server.getNodeId)
 	router.GET("/test/peers", server.getAllPeers)
 	router.POST("/test/peer/connect", server.connectToPeer)
 
 	//user Account endpoints
 	router.GET("/user/account/:address", server.getUserAccount)
-	router.GET("/user/transaction/:txn_hash", server.getTransactionByHash)
 	router.GET("/user/transactions/:sender_address", server.getUserTransactions)
 
 	return server

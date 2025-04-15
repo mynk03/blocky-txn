@@ -22,6 +22,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/p2p/discovery/mdns"
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 )
 
 // ConsensusClient is the main client for participating in consensus
@@ -103,6 +104,9 @@ type ConsensusClient struct {
 
 	// voteTracker keeps track of validator voting behavior
 	voteTracker *VoteTracker
+
+	// Genesis timestamp
+	genesisTimestamp uint64
 }
 
 // NewConsensusClient creates a new consensus client with a validator address derived from
@@ -161,7 +165,7 @@ func NewConsensusClient(
 	}
 
 	// Create a new Proof of Stake consensus instance with default parameters
-	slotDuration := 20 * time.Second
+	slotDuration := 12 * time.Second
 	minStake := uint64(100)
 	baseReward := uint64(10)
 	posConsensus := consensus.NewProofOfStake(slotDuration, minStake, baseReward)
@@ -244,6 +248,8 @@ func NewConsensusClient(
 		"addrs":     h.Addrs(),
 		"validator": selfAddress.Hex(),
 	}).Info("Created new consensus client")
+
+	client.genesisTimestamp = viper.GetUint64("GENESIS_TIMESTAMP")
 
 	return client, nil
 }
