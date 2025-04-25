@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -179,7 +180,6 @@ func (s *Server) getUserAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"account": account})
 }
 
-
 // getTransactionByHash returns the transaction by hash
 func (s *Server) getTransactionByHash(c *gin.Context) {
 	hash := c.Param("txn_hash")
@@ -200,4 +200,44 @@ func (s *Server) getUserTransactions(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"transactions": transactions})
+}
+
+// getBlockchainLength returns to blocks minted
+func (s *Server) getBlockchainLength(c *gin.Context) {
+	totalBlocks := s.client.chain.LastBlockNumber
+	c.JSON(http.StatusOK, gin.H{"totalBlocks": totalBlocks})
+}
+
+// getLastBlock return the last block added to chain
+func (s *Server) getLastBlock(c *gin.Context) {
+	lastBlock := s.client.chain.GetLatestBlock()
+	c.JSON(http.StatusOK, gin.H{"lastBlock": lastBlock})
+
+}
+
+// getBlockTransactionsByHash
+func (s *Server) getBlockTransactionsByHash(c *gin.Context) {
+	block_hash := c.Param("block_hash")
+
+	block := s.client.chain.GetBlockByHash(block_hash)
+	c.JSON(http.StatusOK, gin.H{"transactions": block.Transactions})
+}
+
+// getBlockTransactionCountByHash
+func (s *Server) getBlockTransactionCountByHash(c *gin.Context) {
+	block_hash := c.Param("block_hash")
+
+	block := s.client.chain.GetBlockByHash(block_hash)
+	c.JSON(http.StatusOK, gin.H{"transactions_count": len(block.Transactions)})
+}
+
+// getBlockTransactionCountByNumber
+func (s *Server) getBlockTransactionCountByNumber(c *gin.Context) {
+	block_number, err := strconv.Atoi(c.Param("block_number"))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+
+	block := s.client.chain.GetBlockByIndex(block_number)
+	c.JSON(http.StatusOK, gin.H{"transactions_count": len(block.Transactions)})
 }

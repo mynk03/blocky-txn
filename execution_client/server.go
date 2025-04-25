@@ -22,7 +22,7 @@ func NewServer(client *ExecutionClient) *Server {
 	router.POST("/transaction", server.addTransaction)
 	router.GET("/txn/pool/transactions", server.getTransactions)
 	router.GET("/transaction/:txn_hash", server.getTransactionByHash)
-	
+
 	// Testing endpoints
 	router.GET("/node/id", server.getNodeId)
 	router.GET("/test/peers", server.getAllPeers)
@@ -31,6 +31,15 @@ func NewServer(client *ExecutionClient) *Server {
 	//user Account endpoints
 	router.GET("/user/account/:address", server.getUserAccount)
 	router.GET("/user/transactions/:sender_address", server.getUserTransactions)
+
+	// blockchain specific endpoints
+	router.GET("blockchain/length", server.getBlockchainLength)
+	router.GET("blockchain/lastblock", server.getLastBlock)
+
+	// block specific endpoints
+	router.GET("block/transactions/:block_hash", server.getBlockTransactionsByHash)
+	router.GET("block/transactions/count/:block_hash", server.getBlockTransactionCountByHash)
+	router.GET("block/transactions/count/number/:block_number", server.getBlockTransactionCountByNumber)
 
 	return server
 }
