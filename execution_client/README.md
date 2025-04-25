@@ -1,16 +1,17 @@
 # Execution Client
 
-The execution client is a key component of the blockchain simulator that handles transaction processing, block creation, and peer-to-peer communication.
+The execution client is a key component of the blockchain simulator that handles transaction processing, block creation, and peer-to-peer communication using libp2p.
 
 ## Features
 
-- P2P network communication using libp2p
-- Transaction pool management
-- Block creation and validation
+- P2P network communication using libp2p with GossipSub protocol
+- Transaction pool management with validation
+- Block creation and validation through Harbor RPC
 - HTTP API for user interactions
 - Harbor RPC server for consensus client communication
 - Validator key management
 - Dynamic port allocation
+- mDNS-based peer discovery
 
 ## Quick Start
 
@@ -76,7 +77,7 @@ curl -X POST http://localhost:8081/transaction \
 
 #### Get Pending Transactions
 ```bash
-curl http://localhost:8081/transactions
+curl http://localhost:8081/txn/pool/transactions
 ```
 
 ### Node Information
@@ -95,7 +96,7 @@ curl http://localhost:8081/test/peers
 ```bash
 curl -X POST http://localhost:8081/test/peer/connect \
   -H "Content-Type: application/json" \
-  -d '{"Address": "/ip4/127.0.0.1/tcp/58096/p2p/12D3KooWHtkcAnYeqdXvoAZeTAjqzsqbBX9KU2eNSDWwoH7WyFfB"}'
+  -d '{"peerID": "/ip4/127.0.0.1/tcp/58096/p2p/12D3KooWHtkcAnYeqdXvoAZeTAjqzsqbBX9KU2eNSDWwoH7WyFfB"}'
 ```
 
 ## Running Multiple Nodes
@@ -149,44 +150,41 @@ This script will:
 - Verify peer connections
 - Display all transactions in both nodes' pools
 
-## What Gets Initialized
+## Architecture
 
-When you start a node, the following components are initialized:
+### Components
 
-1. **Logger**
-   - Configurable log level (debug, info, warn, error)
-   - Timestamp and formatted output
+1. **Execution Client**
+   - Manages P2P network using libp2p
+   - Handles transaction broadcasting
+   - Implements GossipSub protocol
+   - Manages peer discovery via mDNS
 
-2. **Data Directory**
-   - Blockchain storage
-   - Transaction pool data
-   - Node configuration
+2. **Transaction Pool**
+   - In-memory storage of pending transactions
+   - Transaction validation
+   - Prevents double-spending
+   - Transaction status tracking
 
-3. **Validator**
-   - Private key loaded from flag or environment
-   - Public address derived from private key
-   - Initial balance set for validator account
+3. **Harbor Server**
+   - gRPC server for consensus communication
+   - Block creation and validation
+   - State trie management
+   - Transaction processing
 
-4. **Blockchain**
-   - LevelDB storage initialized
-   - Genesis block created with validator account
-   - Initial state trie setup
+4. **HTTP Server**
+   - REST API for user interactions
+   - Transaction submission
+   - Node information retrieval
+   - Peer management
 
-5. **Transaction Pool**
-   - In-memory pool for pending transactions
-   - Transaction validation logic
+### Network Protocol
 
-6. **Harbor Server**
-   - gRPC server for consensus client communication
-   - Block creation and validation endpoints
-
-7. **Execution Client**
-   - libp2p host for P2P networking
-   - Message handling goroutines
-   - Peer discovery setup
-
-8. **HTTP Server**
-   - REST API endpoints for transaction and node management
+- Uses libp2p for P2P networking
+- Implements GossipSub for message propagation
+- mDNS for local peer discovery
+- gRPC for consensus communication
+- HTTP for user interactions
 
 ## Environment Variables
 
@@ -196,20 +194,16 @@ LISTEN_ADDR=/ip4/127.0.0.1/tcp/0
 INITIAL_BALANCE=5000
 LOG_LEVEL=debug
 
-
 WALLETS_PATH="chain_data/genesis_data/initial_users/mock_wallets.json"
 TRANSACTIONS_PATH="chain_data/genesis_data/initial_users/mock_transactions.json"
 
-
-# ! Node 1 Configuration
+# Node 1 Configuration
 VALIDATOR_PRIVATE_KEY=<private_key>
 DATA_DIR="./chain_data/node1"
 HTTP_PORT=8081
 HARBOR_PORT=50051
 
-
-
-# ! Node 2 Configuration
+# Node 2 Configuration
 # VALIDATOR_PRIVATE_KEY=<private_key>
 # DATA_DIR="./chain_data/node2"
 # HTTP_PORT=8082
@@ -222,7 +216,7 @@ HARBOR_PORT=50051
 # HARBOR_PORT: Port for Harbor RPC server
 # LISTEN_ADDR: P2P network listen address
 # INITIAL_BALANCE: Initial balance for validator account
-# LOG_LEVEL: Logging level (debug, info, warn, error) 
+# LOG_LEVEL: Logging level (debug, info, warn, error)
 ```
 
 ## Logging
@@ -239,4 +233,16 @@ The node can be gracefully shut down using:
 - Ctrl+C (SIGINT)
 - SIGTERM signal
 
-All components will be properly closed and data will be persisted. 
+All components will be properly closed and data will be persisted.
+
+## Dependencies
+
+- `github.com/libp2p/go-libp2p`: P2P networking
+- `github.com/libp2p/go-libp2p-pubsub`: GossipSub protocol
+- `google.golang.org/grpc`: gRPC server
+- `github.com/gin-gonic/gin`: HTTP server
+- `github.com/ethereum/go-ethereum/common`: Ethereum utilities
+- `github.com/sirupsen/logrus`: Logging
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details. The MIT License is a permissive license that is short and to the point.

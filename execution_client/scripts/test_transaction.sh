@@ -93,9 +93,9 @@ sleep 5
 
 # Get transactions from both nodes
 echo -e "\n${GREEN}Getting transactions from Node 1...${NC}"
-NODE1_TXS=$(curl -s "$NODE1_URL/transactions" | jq -c '.transactions[]')
+NODE1_TXS=$(curl -s "$NODE1_URL/txn/pool/transactions" | jq -c '.transactions[]')
 echo -e "\n${GREEN}Getting transactions from Node 2...${NC}"
-NODE2_TXS=$(curl -s "$NODE2_URL/transactions" | jq -c '.transactions[]')
+NODE2_TXS=$(curl -s "$NODE2_URL/txn/pool/transactions" | jq -c '.transactions[]')
 
 # Compare transactions
 echo -e "\n${GREEN}Comparing transactions...${NC}"
