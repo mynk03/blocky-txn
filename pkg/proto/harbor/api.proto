@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package proto.harbor;
+
+option go_package = "blockchain-simulator/proto/harbor";
+
+// BlockData represents a block in the blockchain
+message BlockData {
+  uint64 index = 1;
+  string timestamp = 2;
+  repeated TransactionData transactions = 3;
+  string prev_hash = 4;
+  string hash = 5;
+  string state_root = 6;
+  string validator = 7;
+}
+
+// TransactionData represents a transaction in the blockchain
+message TransactionData {
+  string from = 1;
+  string to = 2;
+  uint64 amount = 3;
+  uint64 nonce = 4;
+  string transaction_hash = 5;
+  string signature = 6;
+}
+
+// ValidationResult represents the result of block validation
+message ValidationResult {
+  bool valid = 1;
+  string error_message = 2;
+}
+
+// BlockCreationRequest is a request to create a new block from the transaction pool
+message BlockCreationRequest {
+  // Maximum number of transactions to include (0 means unlimited)
+  uint32 max_transactions = 1;
+  // Address of the validator creating this block
+  string validator_address = 2;
+}
+
+// BlockCreationResponse contains the newly created block
+message BlockCreationResponse {
+  BlockData block = 1;
+  string error_message = 2;
+}
+
+// BlockValidationRequest is a request to validate a block
+message BlockValidationRequest {
+  BlockData block = 1;
+}
+
+// HarborAPI defines the interface between consensus and execution clients
+// This is similar to Ethereum's ENGINE API, providing a standardized way for the
+// consensus layer to communicate with the execution layer
+service HarborAPI {
+  // CreateBlock instructs the execution client to create a new block from its transaction pool
+  rpc CreateBlock(BlockCreationRequest) returns (BlockCreationResponse) {}
+  
+  // ValidateBlock validates a block and its transactions
+  rpc ValidateBlock(BlockValidationRequest) returns (ValidationResult) {}
+} 
