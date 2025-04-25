@@ -324,3 +324,7 @@ Planned enhancements for the consensus client include:
 - Improved offline validator detection and reporting
 - Optimized message propagation for larger networks
 - Integration with more sophisticated block validation mechanisms 
+
+
+## License
+This project is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details. The MIT License is a permissive license that is short and to the point.

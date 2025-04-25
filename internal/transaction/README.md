@@ -147,4 +147,4 @@ The package defines several error types:
 - `github.com/sirupsen/logrus`: Logging
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details. The MIT License is a permissive license that is short and to the point.
+This project is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details. The MIT License is a permissive license that is short and to the point.

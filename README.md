@@ -40,39 +40,152 @@ The Blockchain Simulator is a Go-based application designed to emulate core bloc
    go mod tidy
    ```
 
-3. **Build the Project**:
-   ```bash
-   go build -o blockchain-simulator
-   ```
-
-4. **Run the Simulator**:
-   ```bash
-   ./blockchain-simulator
-   ```
 
 ## Usage
 
-### CLI Commands
-- **Initialize a Blockchain**:
-  ```bash
-  ./blockchain-simulator createblockchain
-  ```
-- **Send a Transaction**:
-  ```bash
-  ./blockchain-simulator send --from <address> --to <address> --amount <value>
-  ```
-- **View Blockchain**:
-  ```bash
-  ./blockchain-simulator viewchain
-  ```
-- **Add a Node**:
-  ```bash
-  ./blockchain-simulator addnode --address <node-address>
-  ```
-- **Check Balance**:
-  ```bash
-  ./blockchain-simulator balance --address <address>
-  ```
+### Quick Start Guide
+
+1. **Generate Initial Wallets and Transactions**
+   ```bash
+   # First, update the number of wallets and transactions in .env
+   echo "TOTAL_WALLETS=5" >> .env
+   echo "TOTAL_TRANSACTIONS=10" >> .env
+   
+   # Generate wallets and transactions
+   go run internal/wallet/cmd/main.go
+   
+   # Verify the generated files
+   cat chain_data/genesis_data/initial_users/mock_wallets.json
+   cat chain_data/genesis_data/initial_users/mock_transactions.json
+   ```
+
+2. **Configure Node Environment**
+   ```bash
+   # Copy the example environment file
+   cp .env.example .env
+   
+   # Update the environment variables for Node 1
+   echo "VALIDATOR_PRIVATE_KEY=<private_key_from_wallets_cmd>" >> .env
+   echo "DATA_DIR=\"./chain_data/node1\"" >> .env
+   echo "HTTP_PORT=8081" >> .env
+   echo "HARBOR_PORT=50051" >> .env
+   
+   # For Node 2 (in a separate terminal)
+   echo "VALIDATOR_PRIVATE_KEY=<different_private_key_from_wallets_cmd>" >> .env
+   echo "DATA_DIR=\"./chain_data/node2\"" >> .env
+   echo "HTTP_PORT=8082" >> .env
+   echo "HARBOR_PORT=50052" >> .env
+   ```
+
+3. **Start the Nodes**
+   ```bash
+   # Start Node 1
+   make start-separate
+   
+   # In a new terminal, start Node 2
+   make start-separate
+   ```
+
+4. **Connect the Nodes**
+   - If nodes are not connected.
+   ```bash
+   # Make the connection script executable
+   chmod +x scripts/connect_peers.sh
+   
+   # Run the connection script
+   ./scripts/connect_peers.sh
+   ```
+
+5. **Test Transactions**
+   ```bash
+   # Make the test script executable
+   chmod +x scripts/test_transaction.sh
+   
+   # Run the test script
+   ./scripts/test_transaction.sh
+   ```
+
+### Detailed Steps
+
+1. **Wallet Generation**
+   - The wallet package generates mock wallets and transactions
+   - Wallets are stored in `chain_data/genesis_data/initial_users/mock_wallets.json`
+   - Transactions are stored in `chain_data/genesis_data/initial_users/mock_transactions.json`
+   - Each wallet has a private key, address, and initial balance
+
+2. **Node Configuration**
+   - Each node requires:
+     - A unique validator private key from the generated wallets
+     - A separate data directory
+     - Unique HTTP and Harbor ports
+     - Network configuration (listen address, etc.)
+
+3. **Node Operation**
+   - Nodes communicate via libp2p for P2P networking
+   - Use GossipSub protocol for message propagation
+   - Implement mDNS for local peer discovery
+   - Provide HTTP API for user interactions
+   - Harbor RPC for consensus communication
+
+4. **Transaction Testing**
+   - The test script will:
+     - Send a test transaction to Node 1
+     - Wait for transaction broadcast
+     - Check transaction pools on both nodes
+     - Verify peer connections
+     - Display all transactions in both nodes' pools
+
+### Environment Variables
+
+Key environment variables for node configuration:
+
+```bash
+# Network Configuration
+LISTEN_ADDR=/ip4/127.0.0.1/tcp/0
+INITIAL_BALANCE=5000
+LOG_LEVEL=debug
+
+# Node Configuration
+VALIDATOR_PRIVATE_KEY=<private_key>
+DATA_DIR="./chain_data/node1"
+HTTP_PORT=8081
+HARBOR_PORT=50051
+
+# Wallet Configuration
+TOTAL_WALLETS=5
+WALLETS_PATH="chain_data/genesis_data/initial_users/mock_wallets.json"
+TRANSACTIONS_PATH="chain_data/genesis_data/initial_users/mock_transactions.json"
+```
+
+### HTTP API Usage
+
+1. **Submit a Transaction**
+   ```bash
+   curl -X POST http://localhost:8081/transaction \
+     -H "Content-Type: application/json" \
+     -d '{
+       "transactionHash": "32d81664f96af65c6266726c439019fd2c88272bd23065f1b946e1baf480c147",
+       "sender": "0xfb5865ee63A8D3C5c69F76f181275ef36d92BddA",
+       "receiver": "0x24E82C112D9B97c49890DAC46BCCD32768428c16",
+       "amount": 10,
+       "nonce": 1,
+       "timestamp": 1744294774,
+       "signature": "8df23503cc58894e71057f3fbd48fc6f0a5cc34595a136140cea95bb5f3cc26f3a5a40cebfdf048f8a88d4bac3be1131cb2b52e8794cdddd22c7df3d8cda516500"
+     }'
+   ```
+
+2. **Get Pending Transactions**
+   ```bash
+   curl http://localhost:8081/txn/pool/transactions
+   ```
+
+3. **Get Node Information**
+   ```bash
+   curl http://localhost:8081/node/id
+   curl http://localhost:8081/test/peers
+   ```
+
+For more detailed information about the consensus client, execution client, and wallet package, refer to their respective README files in the `internal` directory.
 
 ## Architecture
 

@@ -11,8 +11,8 @@ NC='\033[0m' # No Color
 NODE1_URL="http://localhost:8081"
 NODE2_URL="http://localhost:8082"
 
-# Get the root directory (two levels up from the script location)
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Get the root directory (one level up from the script location)
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Load environment variables from root directory
 if [ -f "$ROOT_DIR/.env" ]; then
@@ -141,7 +141,7 @@ else
     echo "$NODE2_TXS" | jq -c '.'
 fi
 
-sleep 4 
+sleep 10
 
 # Compare each transaction
 echo -e "\n${YELLOW}=== Transaction-by-Transaction Comparison ===${NC}"

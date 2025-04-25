@@ -29,24 +29,24 @@ TOTAL_WALLETS=5
 TOTAL_TRANSACTIONS=5
 
 # Paths for storing wallet and transaction data
-WALLETS_PATH="chain_data/genesis_data/mock_wallets.json"
-TRANSACTIONS_PATH="chain_data/genesis_data/mock_transactions.json"
+WALLETS_PATH="chain_data/genesis_data/initial_users/mock_wallets.json"
+TRANSACTIONS_PATH="chain_data/genesis_data/initial_users/mock_transactions.json"
 ```
 
 2. **Generate Wallets and Transactions**
 ```bash
-go run wallet/cmd/main.go
+go run cmd/wallet/main.go
 ```
 
 ## Environment Variables
 
 ### Wallet Configuration
 - `TOTAL_WALLETS`: Number of wallets to generate (default: 5)
-- `WALLETS_PATH`: Path to store wallet data (default: "chain_data/genesis_data/mock_wallets.json")
+- `WALLETS_PATH`: Path to store wallet data (default: "chain_data/genesis_data/initial_users/mock_wallets.json")
 
 ### Transaction Configuration
 - `TOTAL_TRANSACTIONS`: Number of transactions to generate (default: 5)
-- `TRANSACTIONS_PATH`: Path to store transaction data (default: "chain_data/genesis_data/mock_transactions.json")
+- `TRANSACTIONS_PATH`: Path to store transaction data (default: "chain_data/genesis_data/initial_users/mock_transactions.json")
 
 ## Generated Files
 
@@ -145,4 +145,4 @@ The package includes comprehensive tests:
 - `github.com/sirupsen/logrus`: Logging
 
 ## License
-This project is licensed under the MIT License - see the [LICENSE](../LICENSE) file for details. The MIT License is a permissive license that is short and to the point.
+This project is licensed under the MIT License - see the [LICENSE](../../LICENSE) file for details. The MIT License is a permissive license that is short and to the point.
