@@ -1,3 +1,6 @@
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 package wallet
 
 // Package wallet provides mock wallet functionality for testing purposes only.
