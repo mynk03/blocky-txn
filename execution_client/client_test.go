@@ -203,7 +203,6 @@ func (suite *ExecutionClientTestSuite) TestTransactionPropagation() {
 	tx.Signature = signature
 
 	// Broadcast transaction from client1
-	fmt.Printf("Broadcasting transaction from client1 (hash: %s)\n", tx.TransactionHash)
 	err = suite.client1.BroadcastTransaction(tx)
 	suite.Require().NoError(err, "Failed to broadcast transaction")
 
@@ -211,7 +210,6 @@ func (suite *ExecutionClientTestSuite) TestTransactionPropagation() {
 	time.Sleep(500 * time.Millisecond)
 
 	// Verify transaction was added to all clients' transaction pools
-	fmt.Println("Verifying transaction in all clients' txn pools...")
 	suite.True(suite.client1.txPool.HasTransaction(tx.TransactionHash), "Transaction should be in client1's pool")
 	suite.True(suite.client2.txPool.HasTransaction(tx.TransactionHash), "Transaction should be in client2's pool")
 	suite.True(suite.client3.txPool.HasTransaction(tx.TransactionHash), "Transaction should be in client3's pool")

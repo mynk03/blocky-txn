@@ -9,7 +9,6 @@ import (
 	"blockchain-simulator/transaction"
 	"crypto/ecdsa"
 	"encoding/json"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -35,8 +34,6 @@ func main() {
 	harborPort := getEnv("HARBOR_PORT", "50050")
 	listenAddr := getEnv("LISTEN_ADDR", "/ip4/127.0.0.1/tcp/0")
 	validatorKey := getEnv("VALIDATOR_PRIVATE_KEY", "9ed1cbd1eaf58283b752faf8e967ed74538624b023eee4a3469346e34fd22036") // default private key for validator
-
-	fmt.Println("validatorKey: ", validatorKey)
 
 	walletsPath := getEnv("WALLETS_PATH", "chain_data/genesis_data/initial_users/mock_wallets.json")
 

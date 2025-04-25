@@ -312,8 +312,6 @@ func (c *ExecutionClient) GetAddress() string {
 func (c *ExecutionClient) GetPeers() []string {
 	peers := c.host.Network().Peers()
 
-	fmt.Println("peers: ", peers)
-
 	peerAddrs := make([]string, 0, len(peers))
 
 	for _, peerID := range peers {

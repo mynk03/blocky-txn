@@ -119,12 +119,6 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 
 	// Convert transactions to protobuf format
 	for i, tx := range newBlock.Transactions {
-		fmt.Println("sender: ", tx.Sender.Hex())
-		fmt.Println("receiver: ", tx.Receiver.Hex())
-		fmt.Println("amount: ", tx.Amount)
-		fmt.Println("nonce: ", tx.Nonce)
-		fmt.Println("transaction hash: ", tx.TransactionHash)
-		fmt.Println("signature: ", tx.Signature)
 		blockData.Transactions[i] = &harbor.TransactionData{
 			From:            tx.Sender.Hex(),
 			To:              tx.Receiver.Hex(),

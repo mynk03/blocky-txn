@@ -64,9 +64,6 @@ func (t *Transaction) Verify() (bool, error) {
 	// Convert the recovered public key to an address
 	recoveredAddr := common.BytesToAddress(ethcrypto.Keccak256(publicKeyBytes[1:])[12:])
 
-	fmt.Println("Recovered address: ", recoveredAddr)
-	fmt.Println("Sender address: ", t.Sender)
-
 	// Compare the recovered address with the sender's address
 	matches := recoveredAddr == t.Sender
 	return matches, nil

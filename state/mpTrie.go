@@ -43,8 +43,6 @@ func (m *MptTrie) PutAccount(address common.Address, account *Account) error {
 	accountBytes := account.Serialize()
 	// Store the serialized account in the trie.
 	err := m.Trie.Put(addressBytes, accountBytes)
-
-	fmt.Println("Account put in trie", address.Hex(), account.Balance)
 	if err != nil {
 		return err
 	}
