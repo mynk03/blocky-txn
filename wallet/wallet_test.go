@@ -1,3 +1,6 @@
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 package wallet
 
 import (
@@ -79,7 +82,7 @@ func (suite *WalletTestSuite) TestMockWalletSignTransaction() {
 	valid := crypto.VerifySignature(
 		crypto.FromECDSAPub(pubkey),
 		testHash.Bytes(),
-		signatureNoRecoverID,
+		[]byte(signatureNoRecoverID),
 	)
 	suite.True(valid)
 }
@@ -133,7 +136,7 @@ func (suite *WalletTestSuite) TestMockWalletSignatureVerification() {
 	valid := crypto.VerifySignature(
 		crypto.FromECDSAPub(pubkey1),
 		testHash.Bytes(),
-		signatureNoRecoverID,
+		[]byte(signatureNoRecoverID),
 	)
 	suite.True(valid)
 
@@ -142,7 +145,7 @@ func (suite *WalletTestSuite) TestMockWalletSignatureVerification() {
 	valid = crypto.VerifySignature(
 		crypto.FromECDSAPub(pubkey2),
 		testHash.Bytes(),
-		signatureNoRecoverID,
+		[]byte(signatureNoRecoverID),
 	)
 	suite.False(valid)
 }

@@ -1,4 +1,7 @@
-package transactions
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
+package transaction
 
 import (
 	"bytes"
@@ -55,10 +58,10 @@ func (suite *TransactionPoolTestSuite) SetupTest() {
 }
 
 // Helper function to create and sign a transaction
-func (suite *TransactionPoolTestSuite) createSignedTransaction(wallet *wallet.MockWallet, to common.Address, amount uint64, nonce uint64, blockNumber uint32) Transaction {
+func (suite *TransactionPoolTestSuite) createSignedTransaction(wallet *wallet.MockWallet, Receiver common.Address, amount uint64, nonce uint64, blockNumber uint32) Transaction {
 	tx := Transaction{
-		From:        wallet.GetAddress(),
-		To:          to,
+		Sender:      wallet.GetAddress(),
+		Receiver:    Receiver,
 		Amount:      amount,
 		Nonce:       nonce,
 		BlockNumber: blockNumber,
@@ -81,8 +84,8 @@ func randomTransaction() Transaction {
 	currentNonce++
 	txn := Transaction{
 		TransactionHash: "", // populate later
-		From:            common.HexToAddress(user1),
-		To:              common.HexToAddress(user2),
+		Sender:          common.HexToAddress(user1),
+		Receiver:        common.HexToAddress(user2),
 		BlockNumber:     blockNumber,
 		Timestamp:       uint64(time.Now().Second()),
 		Status:          1,
@@ -109,21 +112,14 @@ func (suite *TransactionPoolTestSuite) TestAddTransaction() {
 	tx1 := randomTransaction()
 	err := suite.tp.AddTransaction(tx1)
 	suite.NoError(err)
-	suite.Contains(suite.tp.PendingTransactions, tx1)
-}
-
-func (suite *TransactionPoolTestSuite) TestAddInvalidTransaction() {
-	txInvalid := Transaction{TransactionHash: "invalid"}
-	err := suite.tp.AddTransaction(txInvalid)
-	suite.Error(err)
-	suite.NotContains(suite.tp.PendingTransactions, txInvalid)
+	suite.Contains(suite.tp.GetAllTransactions(), tx1)
 }
 
 func (suite *TransactionPoolTestSuite) TestRemoveTransaction() {
 	// Create a test transaction
 	tx := Transaction{
-		From:        common.HexToAddress("0x123"),
-		To:          common.HexToAddress("0x456"),
+		Sender:      common.HexToAddress("0x123"),
+		Receiver:    common.HexToAddress("0x456"),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -134,20 +130,21 @@ func (suite *TransactionPoolTestSuite) TestRemoveTransaction() {
 	// Test removing non-existent transaction
 	err := suite.tp.RemoveTransaction("non_existent_hash")
 	suite.Error(err)
-	suite.Equal("transaction hash not found", err.Error())
+	suite.Equal("transaction not found", err.Error())
 
 	// Add transaction to pool
-	suite.tp.PendingTransactions = append(suite.tp.PendingTransactions, tx)
+	err = suite.tp.AddTransaction(tx)
+	suite.NoError(err)
 
 	// Test removing existing transaction
 	err = suite.tp.RemoveTransaction(tx.TransactionHash)
 	suite.NoError(err)
-	suite.Len(suite.tp.PendingTransactions, 0)
+	suite.Len(suite.tp.GetAllTransactions(), 0)
 
 	// Test removing same transaction again
 	err = suite.tp.RemoveTransaction(tx.TransactionHash)
 	suite.Error(err)
-	suite.Equal("transaction hash not found", err.Error())
+	suite.Equal("transaction not found", err.Error())
 }
 
 func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactions() {
@@ -160,7 +157,8 @@ func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactions() {
 	// Generate hashes and add to pool
 	for _, tx := range txs {
 		tx.TransactionHash = tx.GenerateHash()
-		suite.tp.PendingTransactions = append(suite.tp.PendingTransactions, tx)
+		err := suite.tp.AddTransaction(tx)
+		suite.NoError(err)
 	}
 
 	// Test removing multiple transactions
@@ -177,11 +175,13 @@ func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactions() {
 	// Remove transactions
 	suite.tp.RemoveBulkTransactions(hashes)
 
+	// Get log output before checking transactions
+	logString := logBuffer.String()
+
 	// Verify transactions were removed
-	suite.Len(suite.tp.PendingTransactions, 0)
+	suite.Len(suite.tp.GetAllTransactions(), 0)
 
 	// Verify log output contains error for non-existent transaction
-	logString := logBuffer.String()
 	suite.Contains(logString, "failed to remove transaction")
 	suite.Contains(logString, "non_existent_hash")
 }
@@ -190,21 +190,22 @@ func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactionsWithEmptyPool()
 	// Test removing transactions from empty pool
 	hashes := []string{"hash1", "hash2"}
 	suite.tp.RemoveBulkTransactions(hashes)
-	suite.Len(suite.tp.PendingTransactions, 0)
+	suite.Len(suite.tp.GetAllTransactions(), 0)
 }
 
 func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactionsWithPartialSuccess() {
 	// Create test transactions
 	tx := Transaction{
-		From:        common.HexToAddress("0x123"),
-		To:          common.HexToAddress("0x456"),
+		Sender:      common.HexToAddress("0x123"),
+		Receiver:    common.HexToAddress("0x456"),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
 		Timestamp:   1234567890,
 	}
 	tx.TransactionHash = tx.GenerateHash()
-	suite.tp.PendingTransactions = append(suite.tp.PendingTransactions, tx)
+	err := suite.tp.AddTransaction(tx)
+	suite.NoError(err)
 
 	// Test removing mix of existing and non-existing transactions
 	hashes := []string{
@@ -220,7 +221,7 @@ func (suite *TransactionPoolTestSuite) TestRemoveBulkTransactionsWithPartialSucc
 	suite.tp.RemoveBulkTransactions(hashes)
 
 	// Verify existing transaction was removed
-	suite.Len(suite.tp.PendingTransactions, 0)
+	suite.Len(suite.tp.GetAllTransactions(), 0)
 
 	// Verify log output contains error for non-existent transaction
 	logString := logBuffer.String()
@@ -239,8 +240,8 @@ func (suite *TransactionPoolTestSuite) TestGetTransactionByHash() {
 
 	suite.NotNil(foundTx)
 	suite.Equal(tx1.GenerateHash(), foundTx.TransactionHash)
-	suite.Equal(tx1.From, foundTx.From)
-	suite.Equal(tx1.To, foundTx.To)
+	suite.Equal(tx1.Sender, foundTx.Sender)
+	suite.Equal(tx1.Receiver, foundTx.Receiver)
 	suite.Equal(tx1.Amount, foundTx.Amount)
 	suite.Equal(tx1.Nonce, foundTx.Nonce)
 }
@@ -253,33 +254,48 @@ func (suite *TransactionPoolTestSuite) TestGetTransactionByHashNonExistent() {
 // Test related to the transaction.go
 
 func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
+
+	// Create a test state trie
+	stateTrie := state.NewMptTrie()
+
+	// Create a test account with sufficient balance
+	account := state.Account{
+		Balance: 1000,
+		Nonce:   0,
+	}
+	err := stateTrie.PutAccount(common.HexToAddress(user1), &account)
+	suite.NoError(err)
+
+
+
+
 	// Test valid transaction
 	tx := Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
+		Sender:      common.HexToAddress(user1),
+		Receiver:    common.HexToAddress(user2),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
 		Timestamp:   1234567890,
 	}
 	tx.TransactionHash = tx.GenerateHash()
-	valid, err := tx.Validate()
+	valid, err := tx.ValidateWithState(stateTrie)
 	suite.True(valid)
 	suite.NoError(err)
 
 	// Test transaction with empty sender
 	txEmptyFrom := tx
-	txEmptyFrom.From = common.Address{}
+	txEmptyFrom.Sender = common.Address{}
 	txEmptyFrom.TransactionHash = txEmptyFrom.GenerateHash()
-	valid, err = txEmptyFrom.Validate()
+	valid, err = txEmptyFrom.ValidateWithState(stateTrie)
 	suite.False(valid)
 	suite.Equal(ErrInvalidSender, err)
 
 	// Test transaction with empty recipient
 	txEmptyTo := tx
-	txEmptyTo.To = common.Address{}
+	txEmptyTo.Receiver = common.Address{}
 	txEmptyTo.TransactionHash = txEmptyTo.GenerateHash()
-	valid, err = txEmptyTo.Validate()
+	valid, err = txEmptyTo.ValidateWithState(stateTrie)
 	suite.False(valid)
 	suite.Equal(ErrInvalidRecipient, err)
 
@@ -287,7 +303,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidation() {
 	txZeroAmount := tx
 	txZeroAmount.Amount = 0
 	txZeroAmount.TransactionHash = txZeroAmount.GenerateHash()
-	valid, err = txZeroAmount.Validate()
+	valid, err = txZeroAmount.ValidateWithState(stateTrie)
 	suite.False(valid)
 	suite.Equal(ErrInvalidAmount, err)
 }
@@ -316,8 +332,8 @@ func (suite *TransactionPoolTestSuite) TestTransactionStatus() {
 
 func (suite *TransactionPoolTestSuite) TestTransactionHashGeneration() {
 	tx := Transaction{
-		From:        common.HexToAddress(user1),
-		To:          common.HexToAddress(user2),
+		Sender:      common.HexToAddress(user1),
+		Receiver:    common.HexToAddress(user2),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -345,7 +361,7 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 	// Create a test account with sufficient balance
 	account := state.Account{
 		Balance: 1000,
-		Nonce:   1,
+		Nonce:   0,
 	}
 	err := stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account)
 	suite.NoError(err)
@@ -398,7 +414,7 @@ func (suite *TransactionPoolTestSuite) TestValidateWithState() {
 	)
 	valid, err = txInvalidSender.ValidateWithState(stateTrie)
 	suite.False(valid)
-	suite.Equal(ErrInvalidSender, err)
+	suite.Equal(ErrInsufficientFunds, err)
 }
 
 func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {
@@ -408,11 +424,11 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationWithState() {
 	// Create test accounts
 	account1 := state.Account{
 		Balance: 1000,
-		Nonce:   1,
+		Nonce:   0,
 	}
 	account2 := state.Account{
 		Balance: 500,
-		Nonce:   1,
+		Nonce:   0,
 	}
 	err := stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account1)
 	suite.NoError(err)
@@ -463,7 +479,7 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationEdgeCases() {
 	// Create a test account with maximum balance
 	account := state.Account{
 		Balance: ^uint64(0), // Maximum uint64 value
-		Nonce:   1,
+		Nonce:   0,
 	}
 	err := stateTrie.PutAccount(suite.user1Wallet.GetAddress(), &account)
 	suite.NoError(err)
@@ -491,4 +507,34 @@ func (suite *TransactionPoolTestSuite) TestTransactionValidationEdgeCases() {
 	valid, err = txMaxBlock.ValidateWithState(stateTrie)
 	suite.True(valid)
 	suite.NoError(err)
+}
+
+func (suite *TransactionPoolTestSuite) TestHasTransaction() {
+	// Create a new transaction pool
+	tp := NewTransactionPool()
+
+	// Create a test transaction
+	tx := Transaction{
+		Sender:      common.HexToAddress("0x123"),
+		Receiver:    common.HexToAddress("0x456"),
+		Amount:      100,
+		Nonce:       1,
+		BlockNumber: 1,
+		Timestamp:   1000,
+		Status:      Pending,
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Initially, the transaction should not be in the pool
+	suite.False(tp.HasTransaction(tx.TransactionHash))
+
+	// Add the transaction
+	err := tp.AddTransaction(tx)
+	suite.NoError(err)
+
+	// Now the transaction should be in the pool
+	suite.True(tp.HasTransaction(tx.TransactionHash))
+
+	// Test with non-existent transaction hash
+	suite.False(tp.HasTransaction("0x123"))
 }

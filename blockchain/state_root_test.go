@@ -1,8 +1,11 @@
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 package blockchain
 
 import (
 	"blockchain-simulator/state"
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"os"
 	"testing"
 
@@ -21,39 +24,6 @@ func (suite *StateRootTestSuite) SetupTest() {
 }
 func TestStateRootTestSuite(t *testing.T) {
 	suite.Run(t, new(StateRootTestSuite))
-}
-
-func (suite *StateRootTestSuite) TestProcessBlockWithMissingAccounts() {
-
-	suite.trie.PutAccount(common.HexToAddress("0x0000000000000000000000000000000000000100"), &state.Account{Balance: 1000, Nonce: 0})
-	// Create a test block with a transaction
-	block := Block{
-		Index: 1,
-		Transactions: []transactions.Transaction{
-			{
-				From:   common.HexToAddress("0x1234567890123456789012345678901234567890"),
-				To:     common.HexToAddress("0x0987654321098765432109876543210987654321"),
-				Amount: 100,
-			},
-			{
-				From:   common.HexToAddress("0x0000000000000000000000000000000000000100"),
-				To:     common.HexToAddress("0x0987654321098765432109876543210987654321"),
-				Amount: 100,
-			},
-		},
-	}
-
-	// Capture logrus output
-	var logOutput []byte
-	logrus.SetOutput(&logCapture{output: &logOutput})
-
-	// Process the block - this should trigger error logs
-	ProcessBlock(block, suite.trie)
-
-	// Verify that error logs were generated
-	logString := string(logOutput)
-	suite.Contains(logString, "Error in Retreiving sender account")
-	suite.Contains(logString, "Error in Retreiving receiver account")
 }
 
 // logCapture implements io.Writer to capture logrus output
@@ -90,11 +60,11 @@ func (suite *StateRootTestSuite) TestProcessBlockWithValidAccounts() {
 	// Create a test block with a transaction
 	block := Block{
 		Index: 1,
-		Transactions: []transactions.Transaction{
+		Transactions: []transaction.Transaction{
 			{
-				From:   senderAddr,
-				To:     receiverAddr,
-				Amount: 100,
+				Sender:   senderAddr,
+				Receiver: receiverAddr,
+				Amount:   100,
 			},
 		},
 	}
@@ -157,4 +127,7 @@ func (suite *StateRootTestSuite) TestInitializeStorageWithInvalidPath() {
 	// Optionally verify that the database was created by checking the files
 	_, err := os.Stat(dbPath)
 	suite.Error(err)
+	storage.Close()
+	os.RemoveAll(dbPath)
+	os.RemoveAll("./chaindata")
 }

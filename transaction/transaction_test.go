@@ -1,4 +1,7 @@
-package transactions
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
+package transaction
 
 import (
 	"testing"
@@ -39,8 +42,8 @@ func TestTransactionTestSuite(t *testing.T) {
 func (suite *TransactionTestSuite) TestTransactionSigning() {
 	// Create a test transaction
 	tx := Transaction{
-		From:        suite.senderWallet.GetAddress(),
-		To:          suite.receiverWallet.GetAddress(),
+		Sender:      suite.senderWallet.GetAddress(),
+		Receiver:    suite.receiverWallet.GetAddress(),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -64,12 +67,12 @@ func (suite *TransactionTestSuite) TestTransactionSigning() {
 	isValid, err = tx.Verify()
 	suite.NoError(err)
 	suite.True(isValid)
-	suite.Equal(suite.senderWallet.GetAddress(), tx.From)
+	suite.Equal(suite.senderWallet.GetAddress(), tx.Sender)
 
 	// Test invalid signature
 	tx2 := Transaction{
-		From:        suite.thirdWallet.GetAddress(),
-		To:          suite.receiverWallet.GetAddress(),
+		Sender:      suite.thirdWallet.GetAddress(),
+		Receiver:    suite.receiverWallet.GetAddress(),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -91,8 +94,8 @@ func (suite *TransactionTestSuite) TestTransactionSigning() {
 func (suite *TransactionTestSuite) TestTransactionHash() {
 	// Create two identical transactions
 	tx1 := Transaction{
-		From:        suite.senderWallet.GetAddress(),
-		To:          suite.receiverWallet.GetAddress(),
+		Sender:      suite.senderWallet.GetAddress(),
+		Receiver:    suite.receiverWallet.GetAddress(),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -100,8 +103,8 @@ func (suite *TransactionTestSuite) TestTransactionHash() {
 	}
 
 	tx2 := Transaction{
-		From:        suite.senderWallet.GetAddress(),
-		To:          suite.receiverWallet.GetAddress(),
+		Sender:      suite.senderWallet.GetAddress(),
+		Receiver:    suite.receiverWallet.GetAddress(),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -124,8 +127,8 @@ func (suite *TransactionTestSuite) TestTransactionHash() {
 func (suite *TransactionTestSuite) TestTransactionSigningError() {
 	// Create a test transaction
 	tx := Transaction{
-		From:        suite.senderWallet.GetAddress(),
-		To:          suite.receiverWallet.GetAddress(),
+		Sender:      suite.senderWallet.GetAddress(),
+		Receiver:    suite.receiverWallet.GetAddress(),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,

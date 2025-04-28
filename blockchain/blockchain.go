@@ -77,3 +77,16 @@ func (bc *Blockchain) GetBlockByHash(hash string) Block {
 	}).Error("Block not found")
 	return Block{}
 }
+
+func (bc *Blockchain) GetBlockByIndex(index int) Block {
+	for i, block := range bc.Chain {
+		if i == index {
+			return block
+		}
+	}
+	log.WithFields(log.Fields{
+		"type": "block_not_found",
+		"block_number": index,
+	}).Error("Block not found")
+	return Block{}
+}

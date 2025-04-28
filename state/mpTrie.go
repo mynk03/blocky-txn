@@ -5,6 +5,7 @@ package state
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/nspcc-dev/neo-go/pkg/core/mpt"
@@ -55,6 +56,17 @@ func (m *MptTrie) GetAccount(address common.Address) (*Account, error) {
 	addressBytes := addressToNibbles(address)
 	// Retrieve the stored account bytes from the trie.
 	accountBytes, err := m.Trie.Get(addressBytes)
+
+	if err == mpt.ErrNotFound {
+		fmt.Println("Account not found in trie")
+		account := Account{
+			Balance: 0,
+			Nonce:   0,
+		}
+		m.PutAccount(address, &account)
+		return &account, nil
+	}
+
 	if err != nil {
 		return nil, err
 	}

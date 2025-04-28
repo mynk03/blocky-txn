@@ -1,3 +1,6 @@
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 package wallet
 
 // Package wallet provides mock wallet functionality for testing purposes only.
@@ -17,6 +20,8 @@ var generateKey = crypto.GenerateKey
 type MockWallet struct {
 	privateKey *ecdsa.PrivateKey
 	address    common.Address
+	balance    uint64
+	nonce      uint64
 }
 
 // NewMockWallet creates a new mock wallet with a random private key
@@ -36,6 +41,8 @@ func NewMockWallet() (*MockWallet, error) {
 	return &MockWallet{
 		privateKey: privateKey,
 		address:    address,
+		balance:    100,
+		nonce:      0,
 	}, nil
 }
 
@@ -50,4 +57,9 @@ func (w *MockWallet) SignTransaction(hash common.Hash) ([]byte, error) {
 		return nil, errors.New("private key is nil")
 	}
 	return crypto.Sign(hash.Bytes(), w.privateKey)
+}
+
+// GetPrivateKey returns the wallet's private key
+func (w *MockWallet) GetPrivateKey() *ecdsa.PrivateKey {
+	return w.privateKey
 }

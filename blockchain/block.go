@@ -4,7 +4,7 @@
 package blockchain
 
 import (
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -12,7 +12,7 @@ import (
 )
 
 // CreateBlock creates a new block (without mining/PoW for now).
-func CreateBlock(transactions []transactions.Transaction, prevBlock Block) Block {
+func CreateBlock(transactions []transaction.Transaction, prevBlock Block) Block {
 	newBlock := Block{
 		Index:        prevBlock.Index + 1,
 		Timestamp:    time.Now().UTC().String(),

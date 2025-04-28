@@ -1,9 +1,14 @@
+// Copyright (c) 2025 ANCILAR
+// Licensed under the MIT License. See LICENSE file in the project root for full license information.
+
 package blockchain
 
 import (
-	"blockchain-simulator/transactions"
+	"blockchain-simulator/transaction"
 	"os"
 	"testing"
+
+	"blockchain-simulator/state"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/suite"
@@ -111,9 +116,9 @@ func (suite *LevelDBTestSuite) TestGetLatestBlock() {
 
 func (suite *LevelDBTestSuite) TestPutAndGetTransaction() {
 	// Create a test transaction
-	tx := transactions.Transaction{
-		From:        common.HexToAddress(testUser1),
-		To:          common.HexToAddress(testUser2),
+	tx := transaction.Transaction{
+		Sender:      common.HexToAddress(testUser1),
+		Receiver:    common.HexToAddress(testUser2),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -133,23 +138,23 @@ func (suite *LevelDBTestSuite) TestPutAndGetTransaction() {
 	// Test getting non-existent transaction
 	retrievedTx, err = suite.storage.GetTransaction("0x999")
 	suite.Error(err)
-	suite.Equal(transactions.Transaction{}, retrievedTx)
+	suite.Equal(transaction.Transaction{}, retrievedTx)
 }
 
 func (suite *LevelDBTestSuite) TestGetPendingTransactions() {
 	// Create test transactions
-	txs := []transactions.Transaction{
+	txs := []transaction.Transaction{
 		{
-			From:        common.HexToAddress(testUser1),
-			To:          common.HexToAddress(testUser3),
+			Sender:      common.HexToAddress(testUser1),
+			Receiver:    common.HexToAddress(testUser3),
 			Amount:      100,
 			Nonce:       1,
 			BlockNumber: 1,
 			Timestamp:   1234567890,
 		},
 		{
-			From:        common.HexToAddress(testUser2),
-			To:          common.HexToAddress(testUser3),
+			Sender:      common.HexToAddress(testUser2),
+			Receiver:    common.HexToAddress(testUser3),
 			Amount:      200,
 			Nonce:       1,
 			BlockNumber: 1,
@@ -171,9 +176,9 @@ func (suite *LevelDBTestSuite) TestGetPendingTransactions() {
 
 func (suite *LevelDBTestSuite) TestRemoveTransaction() {
 	// Create a test transaction
-	tx := transactions.Transaction{
-		From:        common.HexToAddress(testUser1),
-		To:          common.HexToAddress(testUser2),
+	tx := transaction.Transaction{
+		Sender:      common.HexToAddress(testUser1),
+		Receiver:    common.HexToAddress(testUser2),
 		Amount:      100,
 		Nonce:       1,
 		BlockNumber: 1,
@@ -192,23 +197,23 @@ func (suite *LevelDBTestSuite) TestRemoveTransaction() {
 	// Verify transaction is removed
 	retrievedTx, err := suite.storage.GetTransaction(tx.TransactionHash)
 	suite.Error(err)
-	suite.Equal(transactions.Transaction{}, retrievedTx)
+	suite.Equal(transaction.Transaction{}, retrievedTx)
 }
 
 func (suite *LevelDBTestSuite) TestRemoveBulkTransactions() {
 	// Create test transactions
-	txs := []transactions.Transaction{
+	txs := []transaction.Transaction{
 		{
-			From:        common.HexToAddress(testUser1),
-			To:          common.HexToAddress(testUser2),
+			Sender:      common.HexToAddress(testUser1),
+			Receiver:    common.HexToAddress(testUser2),
 			Amount:      100,
 			Nonce:       1,
 			BlockNumber: 1,
 			Timestamp:   1234567890,
 		},
 		{
-			From:        common.HexToAddress(testUser2),
-			To:          common.HexToAddress(testUser3),
+			Sender:      common.HexToAddress(testUser2),
+			Receiver:    common.HexToAddress(testUser3),
 			Amount:      200,
 			Nonce:       1,
 			BlockNumber: 1,
@@ -233,7 +238,7 @@ func (suite *LevelDBTestSuite) TestRemoveBulkTransactions() {
 	for _, hash := range hashes {
 		retrievedTx, err := suite.storage.GetTransaction(hash)
 		suite.Error(err)
-		suite.Equal(transactions.Transaction{}, retrievedTx)
+		suite.Equal(transaction.Transaction{}, retrievedTx)
 	}
 }
 
@@ -275,9 +280,9 @@ func (suite *LevelDBTestSuite) TestErrorCases() {
 	suite.NoError(err) // LevelDB should still store invalid data
 
 	// Test invalid transaction data
-	invalidTx := transactions.Transaction{
-		From:        common.Address{}, // Empty address
-		To:          common.Address{}, // Empty address
+	invalidTx := transaction.Transaction{
+		Sender:      common.Address{}, // Empty address
+		Receiver:    common.Address{}, // Empty address
 		Amount:      0,
 		Nonce:       0,
 		BlockNumber: 0,
@@ -292,4 +297,32 @@ func (suite *LevelDBTestSuite) TestErrorCases() {
 	invalidStorage, err := NewLevelDBStorage("")
 	suite.Error(err)
 	suite.Nil(invalidStorage)
+}
+
+func (suite *LevelDBTestSuite) TestGetState() {
+	// Create a test state trie
+	testTrie := state.NewMptTrie()
+	testAccount := &state.Account{
+		Balance: 1000,
+		Nonce:   1,
+	}
+	err := testTrie.PutAccount(common.HexToAddress("0x123"), testAccount)
+	suite.NoError(err)
+
+	// Get the state root
+	stateRoot := testTrie.RootHash()
+
+	// Put the state
+	err = suite.storage.PutState(stateRoot, testTrie)
+	suite.NoError(err)
+
+	// Get the state
+	retrievedState, err := suite.storage.GetState(stateRoot)
+	suite.NoError(err)
+	suite.NotNil(retrievedState)
+
+	// Test getting non-existent state
+	nonExistentState, err := suite.storage.GetState("non_existent_key")
+	suite.Error(err)
+	suite.Nil(nonExistentState)
 }
