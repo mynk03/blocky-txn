@@ -141,6 +141,29 @@ func (suite *LevelDBTestSuite) TestPutAndGetTransaction() {
 	suite.Equal(transaction.Transaction{}, retrievedTx)
 }
 
+func (suite *LevelDBTestSuite) TestGetTransactionsBySender() {
+	// Create a test transaction
+	tx := transaction.Transaction{
+		Sender:      common.HexToAddress(testUser1),
+		Receiver:    common.HexToAddress(testUser2),
+		Amount:      100,
+		Nonce:       1,
+		BlockNumber: 1,
+		Timestamp:   1234567890,
+	}
+	tx.TransactionHash = tx.GenerateHash()
+
+	// Test putting a transaction
+	err := suite.storage.PutTransaction(tx)
+	suite.NoError(err)
+
+	// Test getting the transaction
+	retrievedTxs, err := suite.storage.GetTransactionsBySender(tx.Sender)
+	suite.NoError(err)
+	suite.Equal([]transaction.Transaction{tx}, retrievedTxs)
+
+}
+
 func (suite *LevelDBTestSuite) TestGetPendingTransactions() {
 	// Create test transactions
 	txs := []transaction.Transaction{

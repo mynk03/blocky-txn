@@ -39,6 +39,10 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 // AddBlock adds a validated block to the chain and updates the state.
 func (bc *Blockchain) AddBlock(newBlock Block) (bool, error) {
 
+
+	// update the index of the block correctly
+	newBlock.Index = bc.LastBlockNumber + 1
+
 	// Store block and updated state
 	if err := bc.Storage.PutBlock(newBlock); err != nil {
 		return false, err

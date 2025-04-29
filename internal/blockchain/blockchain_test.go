@@ -104,9 +104,9 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	// Create and process a transaction
 	tx := transaction.Transaction{
 		Sender:   senderAddress,
-		Receiver:     receiverAddress,
-		Amount: 3,
-		Nonce:  0,
+		Receiver: receiverAddress,
+		Amount:   3,
+		Nonce:    0,
 	}
 
 	newBlock := CreateBlock([]transaction.Transaction{tx}, prevBlock)
@@ -134,9 +134,9 @@ func (suite *BlockchainTestSuite) TestBlockPersistence() {
 	// Create and add a new block
 	tx := transaction.Transaction{
 		Sender:   common.HexToAddress(user1),
-		Receiver:     common.HexToAddress(ext_user1),
-		Amount: 5,
-		Nonce:  0,
+		Receiver: common.HexToAddress(ext_user1),
+		Amount:   5,
+		Nonce:    0,
 	}
 
 	latestHash := suite.bc.GetLatestBlockHash()
@@ -209,9 +209,9 @@ func (suite *BlockchainTestSuite) TestAddBlockStorageFailure() {
 	// Create a new block
 	tx := transaction.Transaction{
 		Sender:   common.HexToAddress(user1),
-		Receiver:     common.HexToAddress(ext_user1),
-		Amount: 5,
-		Nonce:  0,
+		Receiver: common.HexToAddress(ext_user1),
+		Amount:   5,
+		Nonce:    0,
 	}
 
 	prevBlock := suite.bc.GetLatestBlock()
@@ -250,4 +250,17 @@ func (suite *BlockchainTestSuite) TestGetBlockByHash() {
 	suite.bc.Chain = []Block{}
 	block := suite.bc.GetLatestBlockHash()
 	suite.Equal("", block)
+}
+
+func (suite *BlockchainTestSuite) TestGetBlockByIndex() {
+
+	newBlock := Block{
+		Index:     1,
+		Timestamp: "",
+		PrevHash:  "",
+	}
+	suite.bc.AddBlock(newBlock)
+	suite.Equal(newBlock, suite.bc.GetBlockByIndex(1))
+
+	suite.Equal(Block{}, suite.bc.GetBlockByIndex(2))
 }

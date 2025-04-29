@@ -113,6 +113,10 @@ func (suite *TransactionPoolTestSuite) TestAddTransaction() {
 	err := suite.tp.AddTransaction(tx1)
 	suite.NoError(err)
 	suite.Contains(suite.tp.GetAllTransactions(), tx1)
+
+
+	err = suite.tp.AddTransaction(tx1)
+	suite.Error(err)
 }
 
 func (suite *TransactionPoolTestSuite) TestRemoveTransaction() {

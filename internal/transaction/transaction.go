@@ -86,9 +86,6 @@ func (t *Transaction) ValidateWithState(stateTrie *state.MptTrie) (bool, error) 
 
 	// Check sender account exists and has sufficient funds
 	senderAccount, _ := stateTrie.GetAccount(t.Sender)
-	if senderAccount == nil {
-		return false, ErrInvalidSender
-	}
 
 	if senderAccount.Balance < t.Amount {
 		return false, ErrInsufficientFunds

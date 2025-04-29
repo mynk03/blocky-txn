@@ -149,3 +149,14 @@ func (suite *WalletTestSuite) TestMockWalletSignatureVerification() {
 	)
 	suite.False(valid)
 }
+
+func (suite *WalletTestSuite) TestGetPrivateKey() {
+	// Test that GetPrivateKey returns the correct private key
+	privateKey := suite.wallet.GetPrivateKey()
+	suite.NotNil(privateKey)
+	suite.Equal(suite.wallet.privateKey, privateKey)
+
+	// Test that GetPrivateKey returns nil for a wallet with nil private key
+	emptyWallet := &MockWallet{}
+	suite.Nil(emptyWallet.GetPrivateKey())
+}
