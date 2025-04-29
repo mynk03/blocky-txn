@@ -91,6 +91,7 @@ func NewExecutionClient(
 	// Create a new libp2p host
 	host, err := libp2p.New(
 		libp2p.ListenAddrStrings(listenAddr),
+		libp2p.NoSecurity,
 	)
 	if err != nil {
 		cancel()
