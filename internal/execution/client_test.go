@@ -136,10 +136,15 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 	suite.Require().NoError(err, "Failed to start client3")
 	time.Sleep(500 * time.Millisecond) // Wait for client3 to fully initialize
 
-	// connect the clients
-	suite.client1.ConnectToPeer(suite.client2.GetAddress())
-	suite.client1.ConnectToPeer(suite.client3.GetAddress())
-	suite.client2.ConnectToPeer(suite.client3.GetAddress())
+
+	for {
+		time.Sleep(500* time.Millisecond)
+		connected := len(suite.client1.GetPeers()) == 2 && len(suite.client2.GetPeers()) == 2 && len(suite.client3.GetPeers()) == 2 
+		if  connected == true{
+			fmt.Println("connected to all discovered peers")
+			break
+		}
+	}
 }
 
 func (suite *ExecutionClientTestSuite) TearDownTest() {
@@ -201,6 +206,8 @@ func (suite *ExecutionClientTestSuite) TestTransactionPropagation() {
 	signature, err := suite.wallet1.SignTransaction(common.HexToHash(tx.TransactionHash))
 	suite.Require().NoError(err, "Failed to sign transaction")
 	tx.Signature = signature
+
+	time.Sleep(500 * time.Millisecond)
 
 	// Broadcast transaction from client1
 	err = suite.client1.BroadcastTransaction(tx)
