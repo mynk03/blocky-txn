@@ -8,9 +8,9 @@ import (
 	"blockchain-simulator/internal/consensus"
 	"blockchain-simulator/pkg/proto/harbor"
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
-	"math/rand"
 	"strings"
 	"testing"
 	"time"
@@ -855,10 +855,10 @@ func TestValidatorRegistrationAndAnnouncement(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 
 	// Generate a new validator address
-	randBytes := make([]byte, 20)
-	_, err = rand.Read(randBytes)
+	randomBytes := make([]byte, 20)
+	_, err = rand.Read(randomBytes)
 	require.NoError(t, err, "Failed to generate random address")
-	validatorAddr := common.BytesToAddress(randBytes)
+	validatorAddr := common.BytesToAddress(randomBytes)
 
 	// Register the validator on client1 using Deposit method
 	// Since RegisterValidator was removed, we'll directly use the Deposit method on the Consensus

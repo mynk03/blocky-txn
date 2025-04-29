@@ -358,19 +358,17 @@ func TestRequestBlockFromExecutionClient(t *testing.T) {
 	// Create test data
 	validatorAddr := common.HexToAddress("0x1111111111111111111111111111111111111111")
 	client.SetSelfAddress(validatorAddr)
-	prevBlockHash := ""
 	maxTransactions := uint32(100)
 
 	// Create test block
 	testBlock := &blockchain.Block{
 		Index:     1,
 		Hash:      "test-hash",
-		PrevHash:  prevBlockHash,
 		Validator: validatorAddr.Hex(),
 	}
 
 	// Setup mock expectations for success
-	mockHarbor.On("RequestBlockCreation", mock.Anything, validatorAddr, prevBlockHash, maxTransactions).
+	mockHarbor.On("RequestBlockCreation", mock.Anything, validatorAddr, maxTransactions).
 		Return(testBlock, nil).Once()
 
 	// Test successful request
@@ -379,7 +377,7 @@ func TestRequestBlockFromExecutionClient(t *testing.T) {
 	assert.Equal(t, testBlock, block, "Should return the expected block")
 
 	// Setup mock expectations for error
-	mockHarbor.On("RequestBlockCreation", mock.Anything, validatorAddr, prevBlockHash, maxTransactions).
+	mockHarbor.On("RequestBlockCreation", mock.Anything, validatorAddr, maxTransactions).
 		Return(nil, assert.AnError).Once()
 
 	// Test error case
