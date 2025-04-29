@@ -22,19 +22,22 @@ var listenAddr = "/ip4/127.0.0.1/tcp/0"
 
 type ExecutionClientTestSuite struct {
 	suite.Suite
-	client1 *ExecutionClient
-	client2 *ExecutionClient
-	client3 *ExecutionClient
-	txPool1 *transaction.TransactionPool
-	txPool2 *transaction.TransactionPool
-	txPool3 *transaction.TransactionPool
-	chain1  *blockchain.Blockchain
-	chain2  *blockchain.Blockchain
-	chain3  *blockchain.Blockchain
-	wallet1 *wallet.MockWallet // Validator wallet for node 1
-	wallet2 *wallet.MockWallet // Validator wallet for node 2
-	wallet3 *wallet.MockWallet // Validator wallet for node 3
-	logger  *logrus.Logger
+	client1       *ExecutionClient
+	client2       *ExecutionClient
+	client3       *ExecutionClient
+	txPool1       *transaction.TransactionPool
+	txPool2       *transaction.TransactionPool
+	txPool3       *transaction.TransactionPool
+	chain1        *blockchain.Blockchain
+	chain2        *blockchain.Blockchain
+	chain3        *blockchain.Blockchain
+	wallet1       *wallet.MockWallet // Validator wallet for node 1
+	wallet2       *wallet.MockWallet // Validator wallet for node 2
+	wallet3       *wallet.MockWallet // Validator wallet for node 3
+	logger        *logrus.Logger
+	harborServer1 *HarborServer
+	harborServer2 *HarborServer
+	harborServer3 *HarborServer
 }
 
 func (suite *ExecutionClientTestSuite) SetupTest() {
@@ -83,9 +86,9 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 	suite.chain3 = blockchain.NewBlockchain(storage3, accounts, amounts)
 
 	// Create harbor servers
-	harborServer1 := NewHarborServer(suite.txPool1, suite.chain1, accounts[0], suite.logger)
-	harborServer2 := NewHarborServer(suite.txPool2, suite.chain2, accounts[1], suite.logger)
-	harborServer3 := NewHarborServer(suite.txPool3, suite.chain3, accounts[2], suite.logger)
+	suite.harborServer1 = NewHarborServer(suite.txPool1, suite.chain1, accounts[0], suite.logger)
+	suite.harborServer2 = NewHarborServer(suite.txPool2, suite.chain2, accounts[1], suite.logger)
+	suite.harborServer3 = NewHarborServer(suite.txPool3, suite.chain3, accounts[2], suite.logger)
 
 	// Create execution clients with longer timeouts
 	suite.client1, err = NewExecutionClient(
@@ -93,17 +96,20 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 		suite.txPool1,
 		suite.chain1,
 		suite.wallet1.GetAddress(),
-		harborServer1,
+		suite.harborServer1,
 		suite.logger,
 	)
 	suite.Require().NoError(err, "Failed to create client1")
+
+	connection := suite.client1.IsConnectedTo(suite.client1.GetAddress())
+	suite.False(connection)
 
 	suite.client2, err = NewExecutionClient(
 		listenAddr,
 		suite.txPool2,
 		suite.chain2,
 		suite.wallet2.GetAddress(),
-		harborServer2,
+		suite.harborServer2,
 		suite.logger,
 	)
 	suite.Require().NoError(err, "Failed to create client2")
@@ -113,7 +119,7 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 		suite.txPool3,
 		suite.chain3,
 		suite.wallet3.GetAddress(),
-		harborServer3,
+		suite.harborServer3,
 		suite.logger,
 	)
 	suite.Require().NoError(err, "Failed to create client3")
@@ -144,9 +150,9 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 	for {
 		select {
 		case <-ticker.C:
-			fmt.Println("here 00",len(suite.client1.GetPeers()) ,"&&" ,
-			len(suite.client2.GetPeers()), "&&",
-			len(suite.client3.GetPeers()))
+			fmt.Println("here 00", len(suite.client1.GetPeers()), "&&",
+				len(suite.client2.GetPeers()), "&&",
+				len(suite.client3.GetPeers()))
 			connected := len(suite.client1.GetPeers()) == 2 &&
 				len(suite.client2.GetPeers()) == 2 &&
 				len(suite.client3.GetPeers()) == 2
@@ -277,4 +283,52 @@ func (suite *ExecutionClientTestSuite) TestTransactionPropagation() {
 			return
 		}
 	}
+}
+
+func (suite *ExecutionClientTestSuite) TestNewExecutionClient() {
+	// Test valid creation
+	suite.Require().NotNil(suite.client1)
+	suite.Require().NotNil(suite.client1.host)
+	suite.Require().NotNil(suite.client1.pubsub)
+	suite.Require().NotNil(suite.client1.transactionCh)
+	suite.Require().NotNil(suite.client1.seenMessages)
+	suite.Require().NotNil(suite.client1.connectCh)
+
+	// Test nil transaction pool
+	_, err := NewExecutionClient(
+		listenAddr,
+		nil,
+		suite.chain1,
+		suite.wallet1.GetAddress(),
+		suite.harborServer1,
+		suite.logger,
+	)
+	suite.Require().Error(err)
+
+	// Test nil blockchain
+	_, err = NewExecutionClient(
+		listenAddr,
+		suite.txPool1,
+		nil,
+		suite.wallet1.GetAddress(),
+		suite.harborServer1,
+		suite.logger,
+	)
+	suite.Require().Error(err)
+}
+
+func (suite *ExecutionClientTestSuite) TestConnectionStatus() {
+	// Test connection status after connecting
+	time.Sleep(1 * time.Second) // Give time for connection to establish
+	suite.True(suite.client2.IsConnectedTo(suite.client1.GetAddress()))
+}
+
+func (suite *ExecutionClientTestSuite) TestInvalidPeerConnection() {
+	// Test connecting to invalid peer address
+	err := suite.client1.ConnectToPeer("invalid-address")
+	suite.Require().Error(err)
+
+	// Test connecting to non-existent peer
+	err = suite.client1.ConnectToPeer("/ip4/127.0.0.1/tcp/5052/p2p/QmInvalidPeerID")
+	suite.Require().Error(err)
 }
