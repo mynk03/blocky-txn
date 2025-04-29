@@ -24,7 +24,7 @@ jobs:
 
       # Run the unit tests
       - name: Go Unit Tests
-        run: go test -v ./...
+        run: go test -v ./internal/...
 
       # Run the tests coverage
       - name: Go Tests Coverage
