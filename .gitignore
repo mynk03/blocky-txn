@@ -34,6 +34,7 @@ testdb/
 transactions/pool_data/
 transactions/test_pool_data/
 validator/testdata/
+internal/execution/testdata
 
 # chain data
 chain_data/
