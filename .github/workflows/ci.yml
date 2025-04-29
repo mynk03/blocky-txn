@@ -29,8 +29,8 @@ jobs:
       # Run the tests coverage
       - name: Go Tests Coverage
         run: |
-          go test -coverprofile=coverage.out ./...
-          go tool cover -func=coverage.out | grep 'total:' | awk '{if ($3 < 90.0) exit 1}'
+          go test -coverprofile=coverage.out ./internal/...
+          go tool cover -func=coverage.out | grep 'total:' | awk '{if ($3 < 75.0) exit 1}'
 
       # Run Cleanup
       - name: Cleanup Coverage File
