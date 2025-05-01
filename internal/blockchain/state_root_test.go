@@ -16,12 +16,15 @@ import (
 
 type StateRootTestSuite struct {
 	suite.Suite
-	trie *state.MptTrie
+	trie         *state.MptTrie
+	stakeAddress common.Address
 }
 
 func (suite *StateRootTestSuite) SetupTest() {
 	suite.trie = state.NewMptTrie()
+	suite.stakeAddress = common.HexToAddress("0x1234567890123456789012345678901234567890")
 }
+
 func TestStateRootTestSuite(t *testing.T) {
 	suite.Run(t, new(StateRootTestSuite))
 }
@@ -40,15 +43,17 @@ func (suite *StateRootTestSuite) TestProcessBlockWithValidAccounts() {
 	// Create test accounts
 	sender := &state.Account{
 		Balance: 1000,
+		Stake:   0,
 		Nonce:   0,
 	}
 	receiver := &state.Account{
 		Balance: 500,
+		Stake:   0,
 		Nonce:   0,
 	}
 
 	// Create test addresses
-	senderAddr := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	senderAddr := common.HexToAddress("0x1234567890123456789012345678900987654321")
 	receiverAddr := common.HexToAddress("0x0987654321098765432109876543210987654321")
 
 	// Store accounts in trie
@@ -66,6 +71,11 @@ func (suite *StateRootTestSuite) TestProcessBlockWithValidAccounts() {
 				Receiver: receiverAddr,
 				Amount:   100,
 			},
+			{
+				Sender:   senderAddr,
+				Receiver: suite.stakeAddress,
+				Amount:   200,
+			},
 		},
 	}
 
@@ -74,7 +84,7 @@ func (suite *StateRootTestSuite) TestProcessBlockWithValidAccounts() {
 	logrus.SetOutput(&logCapture{output: &logOutput})
 
 	// Process the block
-	ProcessBlock(block, suite.trie)
+	ProcessBlock(block, suite.trie, suite.stakeAddress)
 
 	// Verify no error logs were generated
 	logString := string(logOutput)
@@ -84,8 +94,13 @@ func (suite *StateRootTestSuite) TestProcessBlockWithValidAccounts() {
 	// Verify account updates
 	updatedSender, err := suite.trie.GetAccount(senderAddr)
 	suite.NoError(err)
-	suite.Equal(uint64(900), updatedSender.Balance)
-	suite.Equal(uint64(1), updatedSender.Nonce)
+	suite.Equal(uint64(700), updatedSender.Balance)
+	suite.Equal(uint64(200), updatedSender.Stake)
+	suite.Equal(uint64(2), updatedSender.Nonce)
+
+	stakeAddressAccount, err := suite.trie.GetAccount(suite.stakeAddress)
+	suite.NoError(err)
+	suite.Equal(uint64(200), stakeAddressAccount.Balance)
 
 	updatedReceiver, err := suite.trie.GetAccount(receiverAddr)
 	suite.NoError(err)
