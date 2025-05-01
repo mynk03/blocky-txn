@@ -7,17 +7,20 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 )
 
 type HarborServerTestSuite struct {
 	suite.Suite
-	server      *HarborServer
-	txPool      *transaction.TransactionPool
-	chain       *blockchain.Blockchain
-	logger      *logrus.Logger
-	testDataDir string
+	server         *HarborServer
+	txPool         *transaction.TransactionPool
+	chain          *blockchain.Blockchain
+	logger         *logrus.Logger
+	testDataDir    string
+	stakeAddress   common.Address
+	thresholdStake uint64
 }
 
 func (suite *HarborServerTestSuite) SetupTest() {
@@ -25,6 +28,9 @@ func (suite *HarborServerTestSuite) SetupTest() {
 	suite.testDataDir = "./testdata"
 	err := os.MkdirAll(suite.testDataDir, 0755)
 	suite.Require().NoError(err)
+
+	suite.thresholdStake = uint64(400)
+	suite.stakeAddress = common.HexToAddress("0x1234567890123456789012345678901234567890")
 
 	// Create transaction pool
 	suite.txPool = transaction.NewTransactionPool()
@@ -36,7 +42,8 @@ func (suite *HarborServerTestSuite) SetupTest() {
 	// Create blockchain with initial account
 	accounts := []string{"0x100000100000000000000000000000000000000a"}
 	amounts := []uint64{1000}
-	suite.chain = blockchain.NewBlockchain(storage, accounts, amounts)
+	stakeAmounts := []uint64{1000}
+	suite.chain = blockchain.NewBlockchain(storage, accounts, amounts, stakeAmounts, suite.thresholdStake, suite.stakeAddress)
 
 	// Create harbor server
 	suite.server = NewHarborServer(suite.txPool, suite.chain, accounts[0], suite.logger)

@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
@@ -19,13 +20,15 @@ import (
 
 type HandlersTestSuite struct {
 	suite.Suite
-	server      *Server
-	client      *ExecutionClient
-	txPool      *transaction.TransactionPool
-	chain       *blockchain.Blockchain
-	wallet      *wallet.MockWallet
-	logger      *logrus.Logger
-	testDataDir string
+	server         *Server
+	client         *ExecutionClient
+	txPool         *transaction.TransactionPool
+	chain          *blockchain.Blockchain
+	wallet         *wallet.MockWallet
+	logger         *logrus.Logger
+	testDataDir    string
+	stakeAddress   common.Address
+	thresholdStake uint64
 }
 
 func (suite *HandlersTestSuite) SetupTest() {
@@ -33,6 +36,9 @@ func (suite *HandlersTestSuite) SetupTest() {
 	suite.testDataDir = "./testdata"
 	err := os.MkdirAll(suite.testDataDir, 0755)
 	suite.Require().NoError(err)
+
+	suite.stakeAddress = common.HexToAddress("0x1234567890123456789012345678901234567890")
+	suite.thresholdStake = uint64(400)
 
 	// Create wallet
 	suite.wallet, err = wallet.NewMockWallet()
@@ -48,7 +54,8 @@ func (suite *HandlersTestSuite) SetupTest() {
 	// Create blockchain with initial account
 	accounts := []string{suite.wallet.GetAddress().Hex()}
 	amounts := []uint64{1000}
-	suite.chain = blockchain.NewBlockchain(storage, accounts, amounts)
+	stakeAmounts := []uint64{1000}
+	suite.chain = blockchain.NewBlockchain(storage, accounts, amounts, stakeAmounts, suite.thresholdStake, suite.stakeAddress)
 
 	// Create harbor server
 	harborServer := NewHarborServer(suite.txPool, suite.chain, accounts[0], suite.logger)
