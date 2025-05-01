@@ -38,6 +38,7 @@ type ExecutionClientTestSuite struct {
 	harborServer1 *HarborServer
 	harborServer2 *HarborServer
 	harborServer3 *HarborServer
+	stakeAddress  common.Address
 }
 
 func (suite *ExecutionClientTestSuite) SetupTest() {
@@ -51,6 +52,9 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 	testDataDir := "./testdata"
 	err = os.MkdirAll(testDataDir, 0755)
 	suite.Require().NoError(err, "Failed to create test data directory")
+
+	// seting the stakeAddress
+	suite.stakeAddress = common.HexToAddress("0x1234567890123456789012345678901234567890")
 
 	// Create validator wallets
 	suite.wallet1, err = wallet.NewMockWallet()
@@ -80,10 +84,12 @@ func (suite *ExecutionClientTestSuite) SetupTest() {
 		suite.wallet3.GetAddress().Hex(),
 	}
 	amounts := []uint64{1000, 1000, 1000}
+	stakeAmounts := []uint64{4000, 2000, 0}
+	thresholdStake := uint64(400)
 
-	suite.chain1 = blockchain.NewBlockchain(storage1, accounts, amounts)
-	suite.chain2 = blockchain.NewBlockchain(storage2, accounts, amounts)
-	suite.chain3 = blockchain.NewBlockchain(storage3, accounts, amounts)
+	suite.chain1 = blockchain.NewBlockchain(storage1, accounts, amounts, stakeAmounts, thresholdStake, suite.stakeAddress)
+	suite.chain2 = blockchain.NewBlockchain(storage2, accounts, amounts, stakeAmounts, thresholdStake, suite.stakeAddress)
+	suite.chain3 = blockchain.NewBlockchain(storage3, accounts, amounts, stakeAmounts, thresholdStake, suite.stakeAddress)
 
 	// Create harbor servers
 	suite.harborServer1 = NewHarborServer(suite.txPool1, suite.chain1, accounts[0], suite.logger)

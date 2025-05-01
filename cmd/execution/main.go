@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"syscall"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
@@ -59,9 +60,14 @@ func main() {
 	defer storage.Close()
 
 	addresses, balances := getAddressFromMockWallets(walletsPath)
+	stakeAmounts := make([]uint64, len(addresses))
+
+	// declare the stakeAddress and thresholdStake
+	thresholdStake := uint64(400)
+	stakeAddress := common.HexToAddress("0x1234567890123456789012345678901234567890")
 
 	// Create blockchain with initial validator account
-	chain := blockchain.NewBlockchain(storage, addresses, balances)
+	chain := blockchain.NewBlockchain(storage, addresses, balances, stakeAmounts, thresholdStake, stakeAddress)
 
 	// Create transaction pool
 	txPool := transaction.NewTransactionPool()

@@ -80,7 +80,7 @@ func (s *HarborServer) CreateBlock(ctx context.Context, req *harbor.BlockCreatio
 	newBlock.Validator = s.validatorAddr
 
 	// Process the transactions on the validator's state trie
-	blockchain.ProcessBlock(newBlock, s.chain.StateTrie)
+	blockchain.ProcessBlock(newBlock, s.chain.StateTrie, s.chain.StakeAddress)
 
 	// Update the state root
 	newBlock.StateRoot = s.chain.StateTrie.RootHash()
@@ -179,7 +179,7 @@ func (s *HarborServer) ValidateBlock(ctx context.Context, req *harbor.BlockValid
 	tempStateTrie := s.chain.StateTrie.Copy()
 
 	// process the transaction on the validator's state trie
-	blockchain.ProcessBlock(block, tempStateTrie)
+	blockchain.ProcessBlock(block, tempStateTrie, s.chain.StakeAddress)
 
 	// validate the block state root
 	if block.StateRoot != tempStateTrie.RootHash() {
@@ -193,7 +193,7 @@ func (s *HarborServer) ValidateBlock(ctx context.Context, req *harbor.BlockValid
 		}, nil
 	}
 
-	blockchain.ProcessBlock(block, s.chain.StateTrie)
+	blockchain.ProcessBlock(block, s.chain.StateTrie, s.chain.StakeAddress)
 	s.chain.AddBlock(block)
 
 	// remove the transactions from the txn pool to avoid double spending
