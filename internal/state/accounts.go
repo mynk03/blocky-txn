@@ -13,6 +13,7 @@ import (
 // Account represents a user account in the state trie.
 type Account struct {
 	Balance uint64
+	Stake   uint64
 	Nonce   uint64
 }
 
