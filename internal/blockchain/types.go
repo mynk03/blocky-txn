@@ -12,13 +12,13 @@ import (
 
 // Block represents a block in the blockchain.
 type Block struct {
-	Index        uint64                     // Block height
-	Timestamp    string                     // Time of creation
+	Index        uint64                    // Block height
+	Timestamp    string                    // Time of creation
 	Transactions []transaction.Transaction // Transactions in the block
-	PrevHash     string                     // Hash of the previous block
-	Hash         string                     // Hash of the current block
-	StateRoot    string                     // Root hash of the state trie after applying transactions
-	Validator    string                     // Address of the validator who created the block (for PoS)
+	PrevHash     string                    // Hash of the previous block
+	Hash         string                    // Hash of the current block
+	StateRoot    string                    // Root hash of the state trie after applying transactions
+	Validator    string                    // Address of the validator who created the block (for PoS)
 }
 
 // Blockchain represents the entire chain.
@@ -26,6 +26,8 @@ type Blockchain struct {
 	Chain           []Block          // Array of blocks
 	StateTrie       *state.MptTrie   // Merkle Patricia Trie for account states
 	Validators      []common.Address // List of validators (for PoS or round-robin)
+	StakeAddress    common.Address   // account address where staker stakes
 	Storage         Storage          // Add storage field
+	ThresholdStake  uint64           // Min Stake to be a validator
 	LastBlockNumber uint64           // index of the last block in the chain
 }
