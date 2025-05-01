@@ -10,21 +10,37 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uint64) *Blockchain {
+func NewBlockchain(
+	storage Storage,
+	accountsToFund []string,
+	amountsToFund []uint64,
+	stakeAmountsToFund []uint64,
+	thresholdStake uint64,
+	stakeAddress common.Address,
+) *Blockchain {
 	// Initialize the state trie
 	stateTrie := state.NewMptTrie()
 
 	// Create the genesis block
-	genesisBlock := CreateGenesisBlock(accountsToFund, amountsToFund, stateTrie)
+	genesisBlock := CreateGenesisBlock(
+		accountsToFund,
+		amountsToFund,
+		stakeAmountsToFund,
+		stateTrie,
+	)
 
 	// Store genesis block
 	storage.PutBlock(genesisBlock)
 	storage.PutState(genesisBlock.StateRoot, stateTrie)
 
-	// Define validators (for PoS or round-robin)
-	validators := make([]common.Address, len(accountsToFund))
-	for i, addr := range accountsToFund {
-		validators[i] = common.HexToAddress(addr)
+	// Define validators
+	var validators []common.Address
+
+	for _, addr := range accountsToFund {
+		account, _ := stateTrie.GetAccount(common.HexToAddress(addr))
+		if account.Stake >= thresholdStake {
+			validators = append(validators, common.HexToAddress(addr))
+		}
 	}
 
 	return &Blockchain{
@@ -32,13 +48,13 @@ func NewBlockchain(storage Storage, accountsToFund []string, amountsToFund []uin
 		StateTrie:       stateTrie,
 		Validators:      validators,
 		Storage:         storage,
+		ThresholdStake:  thresholdStake,
 		LastBlockNumber: genesisBlock.Index,
 	}
 }
 
 // AddBlock adds a validated block to the chain and updates the state.
 func (bc *Blockchain) AddBlock(newBlock Block) (bool, error) {
-
 
 	// update the index of the block correctly
 	newBlock.Index = bc.LastBlockNumber + 1
@@ -89,7 +105,7 @@ func (bc *Blockchain) GetBlockByIndex(index int) Block {
 		}
 	}
 	log.WithFields(log.Fields{
-		"type": "block_not_found",
+		"type":         "block_not_found",
 		"block_number": index,
 	}).Error("Block not found")
 	return Block{}

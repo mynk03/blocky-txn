@@ -43,7 +43,10 @@ func (suite *BlockchainTestSuite) SetupTest() {
 		ext_user1,
 	}
 	amounts := []uint64{10, 5, 0} // Initial balances for test accounts
-	suite.bc = NewBlockchain(suite.storage, accountAddrs, amounts)
+	stakeAmounts := []uint64{1000, 500, 0}
+	thresholdStake := uint64(400)
+	stakeAddress := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	suite.bc = NewBlockchain(suite.storage, accountAddrs, amounts, stakeAmounts, thresholdStake, stakeAddress)
 }
 
 // TearDownTest cleans up after each test
@@ -110,7 +113,7 @@ func (suite *BlockchainTestSuite) TestTransactionProcessing() {
 	}
 
 	newBlock := CreateBlock([]transaction.Transaction{tx}, prevBlock)
-	ProcessBlock(newBlock, suite.bc.StateTrie)
+	ProcessBlock(newBlock, suite.bc.StateTrie, suite.bc.StakeAddress)
 	success, err := suite.bc.AddBlock(newBlock)
 	suite.NoError(err)
 	suite.True(success)
@@ -174,7 +177,7 @@ func (suite *BlockchainTestSuite) TestMultipleTransactions() {
 	suite.NoError(err)
 
 	newBlock := CreateBlock(txs, prevBlock)
-	ProcessBlock(newBlock, suite.bc.StateTrie)
+	ProcessBlock(newBlock, suite.bc.StateTrie, suite.bc.StakeAddress)
 	success, err := suite.bc.AddBlock(newBlock)
 	suite.NoError(err)
 	suite.True(success)
