@@ -7,6 +7,7 @@ import (
 	"blockchain-simulator/internal/blockchain"
 	"blockchain-simulator/internal/execution"
 	"blockchain-simulator/internal/transaction"
+	chainPkg "blockchain-simulator/cmd/blockchain"
 	"crypto/ecdsa"
 	"encoding/json"
 	"log"
@@ -68,6 +69,7 @@ func main() {
 
 	// Create blockchain with initial validator account
 	chain := blockchain.NewBlockchain(storage, addresses, balances, stakeAmounts, thresholdStake, stakeAddress)
+	chainPkg.SetChainInstance(*chain)
 
 	// Create transaction pool
 	txPool := transaction.NewTransactionPool()

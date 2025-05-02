@@ -4,6 +4,7 @@
 package main
 
 import (
+	chainPkg "blockchain-simulator/cmd/blockchain"
 	consensus "blockchain-simulator/internal/consensus_client"
 	"fmt"
 	"os"
@@ -124,9 +125,12 @@ func runConsensusClient(config Configuration) error {
 		logger.WithField("key", anonymizeKey(config.ValidatorKey)).Info("Using validator private key from configuration")
 	}
 
-	// Create the consensus client
-	logger.Info("Creating consensus client...")
-	client, err := consensus.NewConsensusClient(config.ListenAddr, config.InitialStake, logger)
+	// get blockchain from execution client
+	bc := chainPkg.GetChainInstance()
+
+		// Create the consensus client
+		logger.Info("Creating consensus client...")
+	client, err := consensus.NewConsensusClient(config.ListenAddr, config.InitialStake, bc, logger)
 	if err != nil {
 		return fmt.Errorf("failed to create consensus client: %w", err)
 	}
