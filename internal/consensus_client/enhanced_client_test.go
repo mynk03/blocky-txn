@@ -9,6 +9,7 @@ import (
 	cc "blockchain-simulator/internal/consensus_client"
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -21,13 +22,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test account addresses used throughout the test suite
+const (
+	DbPath = "./testdb"                                   // Path for test database storage
+	user1  = "0x100000100000000000000000000000000000000a" // First test user address
+	user2  = "0x100000100000000000000000000000000000000d" // Second test user address
+)
+
+func InitialiseTestBlockchain() blockchain.Blockchain {
+	// Clean up any existing database
+	if err := os.RemoveAll(DbPath); err != nil {
+		panic(fmt.Sprintf("Failed to cleanup test database: %v", err))
+	}
+
+	storage, err := blockchain.NewLevelDBStorage(DbPath)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create LevelDB storage: %v", err))
+	}
+
+	accountAddrs := []string{
+		user1,
+		user2,
+	}
+	amounts := []uint64{10, 5} // Initial balances for test accounts
+	stakeAmounts := []uint64{1000, 500}
+	thresholdStake := uint64(100)
+	stakeAddress := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	bc := blockchain.NewBlockchain(storage, accountAddrs, amounts, stakeAmounts, thresholdStake, stakeAddress)
+
+	return *bc
+}
+
 // Setup a helper for creating a test client
 func setupTestConsensusClient(t *testing.T) (*cc.ConsensusClient, *logrus.Logger, *test.Hook) {
 	logger, hook := test.NewNullLogger()
 	logger.SetLevel(logrus.DebugLevel)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a consensus client with minimal setup for testing
-	client, err := cc.NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := cc.NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 	require.NotNil(t, client, "Client should not be nil")
 
