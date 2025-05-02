@@ -11,6 +11,8 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"log"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -24,21 +26,61 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test account addresses used throughout the test suite
+const (
+	DbPath = "./testdb"                                   // Path for test database storage
+	user1  = "0x100000100000000000000000000000000000000a" // First test user address
+	user2  = "0x100000100000000000000000000000000000000d" // Second test user address
+)
+
+func cleanupTestDB() {
+	// Remove the test database
+	if err := os.RemoveAll(DbPath); err != nil {
+		log.Printf("Failed to cleanup test database: %v", err)
+	}
+}
+
+func InitialiseTestBlockchain() *blockchain.Blockchain {
+	// Clean up any existing database
+	cleanupTestDB()
+
+	storage, err := blockchain.NewLevelDBStorage(DbPath)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create LevelDB storage: %v", err))
+	}
+	accountAddrs := []string{
+		user1,
+		user2,
+	}
+	amounts := []uint64{10, 5} // Initial balances for test accounts
+	stakeAmounts := []uint64{1000, 500}
+	thresholdStake := uint64(100)
+	stakeAddress := common.HexToAddress("0x1234567890123456789012345678901234567890")
+	bc := blockchain.NewBlockchain(storage, accountAddrs, amounts, stakeAmounts, thresholdStake, stakeAddress)
+
+	return bc
+}
+
 // TestConsensusClientBasics tests the basic functionality of the consensus client
 func TestConsensusClientBasics(t *testing.T) {
+	// Clean up after the test
+	defer cleanupTestDB()
+
 	// Create a logger for the test
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
+
+	bc := InitialiseTestBlockchain()
 
 	// Create a test validator address
 	validatorAddr := common.HexToAddress("0x1111111111111111111111111111111111111111")
 
 	// Create a PoS consensus instance
 	consensus := consensus.CreateDefaultTestPoS(t)
-	consensus.Deposit(validatorAddr, 200) // Add some stake to make this a validator
+	consensus.Deposit(validatorAddr, 1000) // Add some stake to make this a validator
 
 	// Create a new consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 1000, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 	require.NotNil(t, client, "Consensus client should not be nil")
 
@@ -67,6 +109,9 @@ func TestConsensusClientBasics(t *testing.T) {
 
 // TestConsensusClientIntegration tests a two-node network where nodes can communicate
 func TestConsensusClientIntegration(t *testing.T) {
+	// Clean up after the test
+	defer cleanupTestDB()
+
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -89,8 +134,10 @@ func TestConsensusClientIntegration(t *testing.T) {
 	consensus1.Deposit(validator1, 200)
 	consensus2.Deposit(validator2, 300)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create consensus clients on different ports
-	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger1)
+	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9951", 200, *bc, logger1)
 	require.NoError(t, err, "Failed to create first consensus client")
 
 	// Start the first client
@@ -98,7 +145,7 @@ func TestConsensusClientIntegration(t *testing.T) {
 	require.NoError(t, err, "Failed to start first consensus client")
 
 	// Create and start the second client
-	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger2)
+	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9952", 200, *bc, logger2)
 	require.NoError(t, err, "Failed to create second consensus client")
 
 	err = client2.Start()
@@ -168,11 +215,13 @@ func TestConsensusClientMessageTypes(t *testing.T) {
 	// Initial stake amount
 	initialStake := uint64(200)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create two clients with random validator addresses
-	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", initialStake, logger1)
+	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", initialStake, *bc, logger1)
 	require.NoError(t, err, "Failed to create first consensus client")
 
-	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", initialStake, logger2)
+	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", initialStake, *bc, logger2)
 	require.NoError(t, err, "Failed to create second consensus client")
 
 	// Get the validator addresses
@@ -384,11 +433,13 @@ func TestValidatorSelectionLoop(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
-	// Initial stake amount
-	initialStake := uint64(200)
+	bc := InitialiseTestBlockchain()
+
+	// Initial stake amount - set higher than threshold stake (100)
+	initialStake := uint64(500)
 
 	// Create a new consensus client with random validator address
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", initialStake, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", initialStake, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Start the client
@@ -418,8 +469,10 @@ func TestNewConsensusClientRandom(t *testing.T) {
 	// Initial stake amount
 	initialStake := uint64(200)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a new consensus client with random validator address
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", initialStake, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", initialStake, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 	require.NotNil(t, client, "Consensus client should not be nil")
 
@@ -453,9 +506,12 @@ func TestNewConsensusClientRandom(t *testing.T) {
 
 // TestNewConsensusClientEdgeCases tests edge cases of the client creation
 func TestNewConsensusClientEdgeCases(t *testing.T) {
+
+	bc := InitialiseTestBlockchain()
+
 	// Test 1: Create client with zero initial stake (will be added as a non-validator)
 	t.Run("ZeroInitialStake", func(t *testing.T) {
-		client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 0, nil)
+		client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 0, *bc, nil)
 		require.NoError(t, err, "Failed to create consensus client with zero stake")
 		require.NotNil(t, client, "Consensus client should not be nil")
 
@@ -475,7 +531,7 @@ func TestNewConsensusClientEdgeCases(t *testing.T) {
 	// Test 2: Create client with low initial stake (below minimum)
 	t.Run("LowInitialStake", func(t *testing.T) {
 		// The minimum stake is 100, so use 50
-		client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 50, nil)
+		client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 50, *bc, nil)
 		require.NoError(t, err, "Failed to create consensus client with low stake")
 		require.NotNil(t, client, "Consensus client should not be nil")
 
@@ -494,7 +550,7 @@ func TestNewConsensusClientEdgeCases(t *testing.T) {
 
 	// Test 3: Create client with nil logger (should create a default one)
 	t.Run("NilLogger", func(t *testing.T) {
-		client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, nil)
+		client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, nil)
 		require.NoError(t, err, "Failed to create consensus client with nil logger")
 		require.NotNil(t, client, "Consensus client should not be nil")
 
@@ -538,8 +594,10 @@ func TestGarbageCollectSeenMessages(t *testing.T) {
 		t.Skip("Skipping garbage collection test in short mode")
 	}
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, nil)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, nil)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Add some test messages to the seen messages map
@@ -584,12 +642,14 @@ func TestRunValidatorSelectionLoopFull(t *testing.T) {
 		t.Skip("Skipping full validator selection loop test in short mode")
 	}
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a logger for the test
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
 	// Create a consensus client with a custom slot duration for faster testing
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Replace the slot duration with a shorter one for testing
@@ -631,8 +691,10 @@ func TestVoteMessage(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Start the client
@@ -675,12 +737,14 @@ func TestMissedValidationEvidence(t *testing.T) {
 		t.Skip("Skipping message types test in short mode")
 	}
 
+	bc := InitialiseTestBlockchain()
+
 	// Create logger
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
 	// Create a consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Start the client
@@ -725,12 +789,14 @@ func TestDoubleSignEvidence(t *testing.T) {
 		t.Skip("Skipping message types test in short mode")
 	}
 
+	bc := InitialiseTestBlockchain()
+
 	// Create logger
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
 	// Create a consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Start the client
@@ -776,12 +842,14 @@ func TestInvalidBlockEvidence(t *testing.T) {
 		t.Skip("Skipping message types test in short mode")
 	}
 
+	bc := InitialiseTestBlockchain()
+
 	// Create logger
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
 	// Create a consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Start the client
@@ -828,11 +896,13 @@ func TestValidatorRegistrationAndAnnouncement(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create two clients to test validator announcement between them
-	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9901", 200, logger)
+	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9901", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create first consensus client")
 
-	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9902", 200, logger)
+	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9902", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create second consensus client")
 
 	// Start both clients
@@ -896,8 +966,10 @@ func TestOfflineValidatorMonitoring(t *testing.T) {
 	// Create a test hook to capture log messages
 	hook := test.NewLocal(logger)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a new consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Create validators with proper addresses
@@ -1006,8 +1078,10 @@ func TestRunValidatorSelectionLoop(t *testing.T) {
 	hook := test.NewLocal(logger)
 	logger.Level = logrus.InfoLevel
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a consensus client with very short slot duration for testing
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// The client should have already registered itself as a validator with stake 200
@@ -1054,7 +1128,7 @@ func TestRunValidatorSelectionLoop(t *testing.T) {
 	hook.Reset()
 
 	// Create new client and consensus
-	otherClient, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 0, logger)
+	otherClient, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 0, *bc, logger)
 	require.NoError(t, err)
 
 	otherValidator := common.HexToAddress("0x2222222222222222222222222222222222222222")
@@ -1112,8 +1186,10 @@ func TestGarbageCollectSeenMessagesDetailed(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a new consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Create a test context with cancel for controlling the test
@@ -1178,6 +1254,8 @@ func TestGarbageCollectSeenMessagesComplete(t *testing.T) {
 		t.Skip("Skipping complete garbage collection test in short mode")
 	}
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a logger for the test that captures log output
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
@@ -1188,7 +1266,7 @@ func TestGarbageCollectSeenMessagesComplete(t *testing.T) {
 	ctx1, cancel1 := context.WithCancel(context.Background())
 	defer cancel1()
 
-	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 	client1.ctx = ctx1
 
@@ -1251,7 +1329,7 @@ func TestGarbageCollectSeenMessagesComplete(t *testing.T) {
 	// Test 2: context cancellation
 	ctx2, cancel2 := context.WithCancel(context.Background())
 
-	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create second consensus client")
 	client2.ctx = ctx2
 
@@ -1317,8 +1395,10 @@ func TestGetProposalChannel(t *testing.T) {
 	logger := logrus.New()
 	logger.SetLevel(logrus.DebugLevel)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a new consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 	require.NotNil(t, client, "Consensus client should not be nil")
 
@@ -1368,8 +1448,10 @@ func TestValidatorStatusString(t *testing.T) {
 	logger.SetLevel(logrus.InfoLevel)
 	hook := test.NewLocal(logger)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a new consensus client
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Start the client
@@ -1436,8 +1518,10 @@ func TestProcessValidatorAnnouncement(t *testing.T) {
 	// Create a consensus mechanism we can control
 	pos := consensus.CreateDefaultTestPoS(t)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create a new consensus client with our controlled consensus
-	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, logger)
+	client, err := NewConsensusClient("/ip4/127.0.0.1/tcp/0", 200, *bc, logger)
 	require.NoError(t, err, "Failed to create consensus client")
 
 	// Set the consensus to our controlled one
@@ -1542,11 +1626,13 @@ func TestPubSubMessaging(t *testing.T) {
 	hook1 := test.NewLocal(logger1)
 	hook2 := test.NewLocal(logger2)
 
+	bc := InitialiseTestBlockchain()
+
 	// Create two consensus clients with different addresses
-	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9951", 200, logger1)
+	client1, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9951", 200, *bc, logger1)
 	require.NoError(t, err, "Failed to create first consensus client")
 
-	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9952", 200, logger2)
+	client2, err := NewConsensusClient("/ip4/127.0.0.1/tcp/9952", 200, *bc, logger2)
 	require.NoError(t, err, "Failed to create second consensus client")
 
 	// Start both clients
