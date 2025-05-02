@@ -114,6 +114,7 @@ type ConsensusClient struct {
 func NewConsensusClient(
 	listenAddr string,
 	initialStake uint64,
+	bc blockchain.Blockchain,
 	logger *logrus.Logger,
 ) (*ConsensusClient, error) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -170,6 +171,22 @@ func NewConsensusClient(
 	baseReward := uint64(10)
 	posConsensus := consensus.NewProofOfStake(slotDuration, minStake, baseReward)
 
+	// check for stake validation for validator account stake
+	validatorAccount, err := bc.StateTrie.GetAccount(selfAddress)
+	if err != nil {
+		// If the account doesn't exist yet, we'll allow any stake amount
+		// The validator won't be able to participate until they have sufficient stake
+	} else {
+		// If the account exists, check both stakes
+		if initialStake < bc.ThresholdStake && validatorAccount.Stake < bc.ThresholdStake {
+			// Allow the client to be created, but it won't be able to participate in validation
+			logger.WithFields(logrus.Fields{
+				"address": selfAddress.Hex(),
+				"stake":   initialStake,
+			}).Warn("Validator stake below threshold - will not be able to participate in validation")
+		}
+	}
+
 	// Add our initial stake to become a validator
 	if initialStake >= minStake {
 		posConsensus.Deposit(selfAddress, initialStake)
@@ -182,7 +199,7 @@ func NewConsensusClient(
 			"address":  selfAddress.Hex(),
 			"stake":    initialStake,
 			"minStake": minStake,
-		}).Warn("Initial stake below minimum, not added as validator")
+		}).Warn("Initial stake below minimum - validator will not be able to participate")
 	}
 
 	// Create a new libp2p host
